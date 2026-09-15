@@ -42,7 +42,7 @@ src/
 
 **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Framer Motion, React Router, Lucide React, Vitest, React Testing Library.
 
-**Backend:** ASP.NET Core 8, C#, Entity Framework Core, SQLite for local fallback, SQL Server support, JWT Bearer authentication, rate limiting, Swagger, CloudinaryDotNet.
+**Backend:** ASP.NET Core 8, C#, Entity Framework Core, PostgreSQL via Npgsql for production, SQLite for local development/tests, JWT Bearer authentication, rate limiting, Swagger, CloudinaryDotNet.
 
 **Delivery and operations:** Vercel static deployment, Cloudinary media storage, GitHub Actions, Vercel Analytics, Sentry.
 
@@ -75,20 +75,21 @@ Prerequisites: .NET 8 SDK.
 Set configuration through environment variables or user secrets. Never commit secrets:
 
 ```env
-ConnectionStrings__DefaultConnection=Data Source=portfolio.db
+ConnectionStrings__DefaultConnection=Host=ep-example.eu-central-1.aws.neon.tech;Port=5432;Database=portfolio;Username=portfolio_owner;Password=<NEON_PASSWORD>;SSL Mode=Require;Trust Server Certificate=true;Pooling=true;Maximum Pool Size=10
+Database__Provider=Postgres
 Jwt__Secret=replace-with-a-random-secret-at-least-32-characters
 Jwt__Issuer=Portfolio.WebApi
 Jwt__Audience=Portfolio.Client
 Admin__Email=admin@example.com
 Admin__Password=replace-with-a-strong-password
-Cors__Frontend=http://localhost:3000
+Cors__Frontend=https://your-production-domain.example
 
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 ```
 
-Cloudinary variables are required for durable production profile uploads. When they are absent, local development falls back to `Backend/WebApi/wwwroot/uploads`; that filesystem is not durable on serverless hosting.
+Cloudinary variables are required for durable production profile uploads. When they are absent, local development falls back to `Backend/WebApi/wwwroot/uploads`; that filesystem is not durable on serverless hosting. Use `Database__Provider=Sqlite` and `Data Source=portfolio.db` only for local development.
 
 Run the API:
 

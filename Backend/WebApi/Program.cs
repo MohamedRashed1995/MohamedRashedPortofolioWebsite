@@ -34,8 +34,19 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+var configuredOrigins = (builder.Configuration["Cors:Frontend"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+    .Select(origin => origin.TrimEnd('/'))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToList();
+if (builder.Environment.IsDevelopment())
+    configuredOrigins.AddRange(["http://localhost:3000", "https://localhost:3000"]);
+if (configuredOrigins.Count == 0)
+    throw new InvalidOperationException("Cors:Frontend must contain at least one absolute frontend origin.");
+
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    .SetIsOriginAllowed(_ => true)
+    .WithOrigins(configuredOrigins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
     .AllowAnyHeader()
     .AllowAnyMethod()
     .AllowCredentials()));
@@ -62,23 +73,26 @@ builder.Services.AddRateLimiter(options => options.AddPolicy("profile-upload", c
     })));
 
 var app = builder.Build();
-var uploadsDirectory = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "uploads");
-Directory.CreateDirectory(uploadsDirectory);
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync(CancellationToken.None);
 }
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseStaticFiles();
-app.UseStaticFiles(new StaticFileOptions
+if (app.Environment.IsDevelopment())
 {
-    FileProvider = new PhysicalFileProvider(uploadsDirectory),
-    RequestPath = "/uploads",
-    OnPrepareResponse = context =>
+    var uploadsDirectory = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "uploads");
+    Directory.CreateDirectory(uploadsDirectory);
+    app.UseStaticFiles(new StaticFileOptions
     {
-        context.Context.Response.Headers.CacheControl = "public, max-age=0, must-revalidate";
-    },
-});
+        FileProvider = new PhysicalFileProvider(uploadsDirectory),
+        RequestPath = "/uploads",
+        OnPrepareResponse = context =>
+        {
+            context.Context.Response.Headers.CacheControl = "public, max-age=0, must-revalidate";
+        },
+    });
+}
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api/playground") && context.Request.Method != HttpMethods.Get)
