@@ -6,13 +6,14 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Portfolio.Infrastructure.Persistence;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? builder.Configuration["Jwt__Secret"] ?? "MohamedRashedPortfolioSecretKey2026SecureJwtSigningKey!";
+var jwtSecret = builder.Configuration["Jwt:Secret"] ?? builder.Configuration["Jwt__Secret"];
 if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
-    jwtSecret = "MohamedRashedPortfolioSecretKey2026SecureJwtSigningKey!";
+    throw new InvalidOperationException("Jwt:Secret must be configured and at least 32 characters long.");
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
@@ -45,13 +46,39 @@ builder.Services.AddRateLimiter(options => options.AddPolicy("public", context =
         Window = TimeSpan.FromMinutes(1),
         QueueLimit = 0
     })));
+builder.Services.AddRateLimiter(options => options.AddPolicy("auth", context =>
+    RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+    {
+        PermitLimit = 5,
+        Window = TimeSpan.FromMinutes(1),
+        QueueLimit = 0
+    })));
+builder.Services.AddRateLimiter(options => options.AddPolicy("profile-upload", context =>
+    RateLimitPartition.GetFixedWindowLimiter(context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+    {
+        PermitLimit = 10,
+        Window = TimeSpan.FromHours(1),
+        QueueLimit = 0
+    })));
 
 var app = builder.Build();
+var uploadsDirectory = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "uploads");
+Directory.CreateDirectory(uploadsDirectory);
 using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync(CancellationToken.None);
 }
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsDirectory),
+    RequestPath = "/uploads",
+    OnPrepareResponse = context =>
+    {
+        context.Context.Response.Headers.CacheControl = "public, max-age=0, must-revalidate";
+    },
+});
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api/playground") && context.Request.Method != HttpMethods.Get)

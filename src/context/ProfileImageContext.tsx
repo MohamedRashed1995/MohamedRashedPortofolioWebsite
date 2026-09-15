@@ -1,70 +1,47 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { fetchProfileImage, resetProfileImage, uploadProfileImage } from '@/services/api';
 
 const DEFAULT_AVATAR = '/profile.jpg';
-const PROFILE_VERSION_KEY = 'portfolio_custom_profile_avatar_version';
 
 interface ProfileImageContextType {
   profileImage: string;
   profileImageVersion?: string;
   hasCustomImage: boolean;
-  setCustomImage: (base64OrUrl: string) => Promise<void>;
-  resetToDefault: () => void;
+  setCustomImage: (file: File) => Promise<void>;
+  resetToDefault: () => Promise<void>;
 }
-
-const STORAGE_KEY = 'portfolio_custom_profile_avatar';
 
 const ProfileImageContext = createContext<ProfileImageContextType | undefined>(undefined);
 
 export const ProfileImageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [profileImage, setProfileImage] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved && saved.startsWith('data:image')) {
-        return saved;
-      }
-    } catch {
-      // ignore storage errors
-    }
-    return DEFAULT_AVATAR;
-  });
+  const [profileImage, setProfileImage] = useState(DEFAULT_AVATAR);
+  const [profileImageVersion, setProfileImageVersion] = useState<string | undefined>();
+  const [hasCustomImage, setHasCustomImage] = useState(false);
 
-  const [hasCustomImage, setHasCustomImage] = useState<boolean>(() => {
-    try {
-      return Boolean(localStorage.getItem(STORAGE_KEY));
-    } catch {
-      return false;
-    }
-  });
+  useEffect(() => {
+    let active = true;
+    fetchProfileImage()
+      .then((media) => {
+        if (!active || !media) return;
+        setProfileImage(media.url);
+        setProfileImageVersion(media.version);
+        setHasCustomImage(true);
+      })
+      .catch((error) => console.error('Failed to load profile image:', error));
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  const [profileImageVersion, setProfileImageVersion] = useState<string | undefined>(() => {
-    try {
-      return localStorage.getItem(PROFILE_VERSION_KEY) || undefined;
-    } catch {
-      return undefined;
-    }
-  });
-
-  const setCustomImage = async (base64OrUrl: string) => {
-    try {
-      const version = Date.now().toString(36);
-      localStorage.setItem(STORAGE_KEY, base64OrUrl);
-      localStorage.setItem(PROFILE_VERSION_KEY, version);
-      setProfileImage(base64OrUrl);
-      setProfileImageVersion(version);
-      setHasCustomImage(true);
-    } catch (err) {
-      console.error('Failed to save profile image to storage:', err);
-      throw new Error('Image too large to save in browser storage. Please choose an image under 4MB.');
-    }
+  const setCustomImage = async (file: File) => {
+    const media = await uploadProfileImage(file);
+    setProfileImage(media.url);
+    setProfileImageVersion(media.version);
+    setHasCustomImage(true);
   };
 
-  const resetToDefault = () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.removeItem(PROFILE_VERSION_KEY);
-    } catch {
-      // ignore
-    }
+  const resetToDefault = async () => {
+    await resetProfileImage();
     setProfileImage(DEFAULT_AVATAR);
     setProfileImageVersion(undefined);
     setHasCustomImage(false);

@@ -9,6 +9,16 @@ function replaceImageExtension(url: string, extension: '.webp' | '.avif'): strin
     return undefined;
   }
 
+  try {
+    const parsedUrl = new URL(url, window.location.origin);
+    if (parsedUrl.hostname.endsWith('res.cloudinary.com') && parsedUrl.pathname.includes('/image/upload/')) {
+      parsedUrl.pathname = parsedUrl.pathname.replace('/image/upload/', `/image/upload/f_${extension.slice(1)}/`);
+      return parsedUrl.toString();
+    }
+  } catch {
+    return undefined;
+  }
+
   const match = url.match(/^([^?#]+)(\?[^#]*)?(#.*)?$/);
   if (!match || !/\.(png|jpe?g)$/i.test(match[1])) {
     return undefined;

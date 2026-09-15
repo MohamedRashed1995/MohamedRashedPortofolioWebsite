@@ -111,11 +111,11 @@ export const AdminImageManager: React.FC = () => {
   };
 
   const handleApplyImage = async () => {
-    if (!previewUrl) return;
+    if (!selectedFile) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      await setCustomImage(previewUrl);
+      await setCustomImage(selectedFile);
       setSuccessMessage(isRTL ? 'تم تحديث صورتك الشخصية بنجاح عبر جميع صفحات الموقع!' : 'Profile image successfully updated across the entire site!');
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -126,11 +126,19 @@ export const AdminImageManager: React.FC = () => {
     }
   };
 
-  const handleReset = () => {
-    resetToDefault();
-    setPreviewUrl(null);
-    setSelectedFile(null);
-    setSuccessMessage(isRTL ? 'تمت استعادة الصورة الافتراضية بنجاح.' : 'Default original photo restored.');
+  const handleReset = async () => {
+    setIsProcessing(true);
+    setErrorMessage(null);
+    try {
+      await resetToDefault();
+      setPreviewUrl(null);
+      setSelectedFile(null);
+      setSuccessMessage(isRTL ? 'تمت استعادة الصورة الافتراضية بنجاح.' : 'Default original photo restored.');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to reset image');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (

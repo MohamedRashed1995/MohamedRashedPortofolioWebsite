@@ -14,11 +14,13 @@ import AiLab from '@/pages/AiLab';
 import Contact from '@/pages/Contact';
 import AdminDashboard from '@/pages/AdminDashboard';
 import NotFound from '@/pages/NotFound';
+import { Analytics } from '@vercel/analytics/react';
 
 function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
+        <Analytics />
         <ProfileImageProvider>
           <DataProvider>
             <BrowserRouter>

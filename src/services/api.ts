@@ -4,12 +4,42 @@ import {
   getStoredInquiries,
   addInquiryToStore,
   updateInquiryStatusInStore,
-  verifyAdminCredentials,
-  verifyAdminPassword,
-  setAdminAuthenticated,
   getStoredProjects,
   getStoredTechStack,
 } from '@/services/dataStorage';
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
+
+interface ProfileImageResponse {
+  url: string;
+  version: string;
+  contentType: string;
+  updatedAt: string;
+}
+
+function getAdminToken(): string | undefined {
+  try {
+    const raw = localStorage.getItem('admin_access_token');
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as { token?: string };
+    return parsed.token;
+  } catch {
+    return undefined;
+  }
+}
+
+function resolveMediaUrl(url: string): string {
+  return new URL(url, API_BASE_URL).toString();
+}
+
+async function readApiError(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: string };
+    return body.message || `Request failed with status ${response.status}.`;
+  } catch {
+    return `Request failed with status ${response.status}.`;
+  }
+}
 
 export interface CreateInquiryInput {
   name: string;
@@ -93,32 +123,49 @@ export interface AdminAuthResult {
 }
 
 export async function loginAdmin(email?: string, password?: string): Promise<AdminAuthResult> {
-  await new Promise((resolve) => setTimeout(resolve, 350));
-  
-  if (password && verifyAdminCredentials(email, password)) {
-    setAdminAuthenticated(true);
-    return {
-      accessToken: `admin_token_${Date.now()}`,
-      user: {
-        email: email || 'mrashed19951995@gmail.com',
-        role: 'Admin',
-      },
-    };
-  }
+  const response = await fetch(`${API_BASE_URL}/admin/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) throw new Error(await readApiError(response));
 
-  // If only password provided as first arg
-  if (email && !password && verifyAdminPassword(email)) {
-    setAdminAuthenticated(true);
-    return {
-      accessToken: `admin_token_${Date.now()}`,
-      user: {
-        email: 'mrashed19951995@gmail.com',
-        role: 'Admin',
-      },
-    };
-  }
+  const result = (await response.json()) as { accessToken: string; expiresAt: string };
+  localStorage.setItem('admin_access_token', JSON.stringify({ token: result.accessToken, expiresAt: result.expiresAt }));
+  return { accessToken: result.accessToken, user: { email: email || '', role: 'Admin' } };
+}
 
-  throw new Error('Invalid admin credentials. Please check your email and password.');
+export async function fetchProfileImage(): Promise<ProfileImageResponse | null> {
+  const response = await fetch(`${API_BASE_URL}/profile-image`, { cache: 'no-store' });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(await readApiError(response));
+  const result = (await response.json()) as ProfileImageResponse;
+  return { ...result, url: resolveMediaUrl(result.url) };
+}
+
+export async function uploadProfileImage(file: File): Promise<ProfileImageResponse> {
+  const token = getAdminToken();
+  if (!token) throw new Error('Your admin session has expired. Please sign in again.');
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await fetch(`${API_BASE_URL}/profile-image`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!response.ok) throw new Error(await readApiError(response));
+  const result = (await response.json()) as ProfileImageResponse;
+  return { ...result, url: resolveMediaUrl(result.url) };
+}
+
+export async function resetProfileImage(): Promise<void> {
+  const token = getAdminToken();
+  if (!token) throw new Error('Your admin session has expired. Please sign in again.');
+  const response = await fetch(`${API_BASE_URL}/profile-image`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(await readApiError(response));
 }
 
 export async function updateInquiryStatus(

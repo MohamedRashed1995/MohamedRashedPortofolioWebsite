@@ -175,6 +175,13 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+  .btn-primary:focus-visible,
+  .btn-ghost:focus-visible,
+  button:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: 3px;
+  }
 
   .btn-ghost {
     display: inline-flex;

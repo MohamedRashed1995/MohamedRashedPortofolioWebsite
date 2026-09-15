@@ -88,3 +88,18 @@ public sealed class GithubMetricsCacheConfiguration : IEntityTypeConfiguration<G
         builder.HasIndex(item => item.LastSyncedAt);
     }
 }
+
+public sealed class SiteMediaConfiguration : IEntityTypeConfiguration<SiteMedia>
+{
+    public void Configure(EntityTypeBuilder<SiteMedia> builder)
+    {
+        builder.HasKey(item => item.Id);
+        builder.HasIndex(item => item.MediaKey).IsUnique();
+        builder.Property(item => item.MediaKey).HasMaxLength(100).IsRequired();
+        builder.Property(item => item.RelativeUrl).HasMaxLength(500).IsRequired();
+        builder.Property(item => item.Version).HasMaxLength(64).IsRequired();
+        builder.Property(item => item.ContentType).HasMaxLength(100).IsRequired();
+        builder.Property(item => item.CloudinaryPublicId).HasMaxLength(255);
+        builder.Property(item => item.StorageProvider).HasMaxLength(30).IsRequired();
+    }
+}

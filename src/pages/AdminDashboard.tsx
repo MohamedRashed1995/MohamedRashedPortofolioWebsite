@@ -42,13 +42,12 @@ import { useData } from '@/context/DataContext';
 import { AdminImageManager } from '@/components/AdminImageManager';
 import ProjectImage from '@/components/ProjectImage';
 import {
-  verifyAdminPassword,
-  verifyAdminCredentials,
   DEFAULT_ADMIN_CREDENTIALS,
   setCustomAdminPassword,
   isAdminAuthenticated,
   setAdminAuthenticated,
 } from '@/services/dataStorage';
+import { loginAdmin } from '@/services/api';
 import type { Project } from '@/types';
 
 
@@ -240,30 +239,25 @@ export default function AdminDashboard() {
   });
 
   // Handle Login
-  const handleLogin = (e: FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
     setAuthLoading(true);
     setAuthError(null);
 
-    setTimeout(() => {
-      if (verifyAdminCredentials(emailInput, passwordInput) || verifyAdminPassword(passwordInput)) {
-        setAdminAuthenticated(true);
-        setAuthed(true);
-        setPasswordInput('');
-        showToast(
-          isRTL
-            ? `مرحباً بك يا م. محمد راشد (${emailInput || DEFAULT_ADMIN_CREDENTIALS.email})`
-            : `Welcome back, Admin (${emailInput || DEFAULT_ADMIN_CREDENTIALS.email})!`
-        );
-      } else {
-        setAuthError(
-          isRTL
-            ? 'بيانات الدخول غير صحيحة. يرجى التأكد من البريد الإلكتروني وكلمة المرور (Password@123).'
-            : 'Invalid credentials. Please verify your email and password (Password@123).'
-        );
-      }
+    try {
+      await loginAdmin(emailInput, passwordInput);
+      setAuthed(true);
+      setPasswordInput('');
+      showToast(
+        isRTL
+          ? `مرحباً بك يا م. محمد راشد (${emailInput || DEFAULT_ADMIN_CREDENTIALS.email})`
+          : `Welcome back, Admin (${emailInput || DEFAULT_ADMIN_CREDENTIALS.email})!`
+      );
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Invalid admin credentials.');
+    } finally {
       setAuthLoading(false);
-    }, 300);
+    }
   };
 
   const handleLogout = () => {

@@ -4,3 +4,4 @@ public sealed record AiEvaluationCaseDto(Guid Id, string Title, string Category,
 public sealed record GithubMetricsDto(int TotalRepos, IReadOnlyList<GithubLanguageDto> TopLanguages, int TotalCommitsLast90Days, DateTime LastSyncedAt);
 public sealed record GithubLanguageDto(string Language, decimal Percentage);
 public sealed record TechnologyDto(Guid Id, string Name, string Category, string? Icon, string? Description);
+public sealed record SiteMediaDto(string Url, string Version, string ContentType, DateTime UpdatedAt);

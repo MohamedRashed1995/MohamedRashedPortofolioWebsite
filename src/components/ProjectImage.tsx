@@ -125,7 +125,7 @@ function getCategoryConfig(slug?: string, title?: string, tags: string[] = []): 
 
 export const ProjectImage: React.FC<ProjectImageProps> = ({
   src,
-  alt = 'Project Image',
+  alt = title,
   title = 'Project',
   titleAr,
   slug,

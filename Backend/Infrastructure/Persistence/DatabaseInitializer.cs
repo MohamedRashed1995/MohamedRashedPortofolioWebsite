@@ -68,7 +68,9 @@ public sealed class DatabaseInitializer(ApplicationDbContext db, IPasswordHasher
         }
 
         var adminEmail = (configuration["Admin:Email"]?.Trim().ToLowerInvariant()) ?? "mrashed19951995@gmail.com";
-        var adminPassword = configuration["Admin:Password"] ?? "Password@123";
+        var adminPassword = configuration["Admin:Password"];
+        if (string.IsNullOrWhiteSpace(adminPassword))
+            throw new InvalidOperationException("Admin:Password must be configured before initializing the database.");
         if (!await db.AdminUsers.AnyAsync(cancellationToken))
         {
             var admin = new AdminUser { Id = Guid.NewGuid(), Email = adminEmail, PasswordHash = string.Empty, Role = "Admin", CreatedAt = DateTime.UtcNow };
