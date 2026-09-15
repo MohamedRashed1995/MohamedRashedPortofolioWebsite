@@ -6,15 +6,13 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Portfolio.Infrastructure.Persistence;
-using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? builder.Configuration["Jwt__Secret"];
+var jwtSecret = builder.Configuration["Jwt:Secret"];
 if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
-    throw new InvalidOperationException("Jwt:Secret must be configured and at least 32 characters long.");
-
+    throw new InvalidOperationException("Jwt:Secret must be configured with at least 32 characters.");
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
@@ -22,9 +20,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
         ValidateIssuer = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "Portfolio.WebApi",
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidateAudience = true,
-        ValidAudience = builder.Configuration["Jwt:Audience"] ?? "Portfolio.Client",
+        ValidAudience = builder.Configuration["Jwt:Audience"],
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(1)
     };
@@ -34,41 +32,14 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-var configuredOrigins = (builder.Configuration["Cors:Frontend"] ?? string.Empty)
-    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-    .Where(origin => Uri.TryCreate(origin, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
-    .Select(origin => origin.TrimEnd('/'))
-    .Distinct(StringComparer.OrdinalIgnoreCase)
-    .ToList();
-if (builder.Environment.IsDevelopment())
-    configuredOrigins.AddRange(["http://localhost:3000", "https://localhost:3000"]);
-if (configuredOrigins.Count == 0)
-    throw new InvalidOperationException("Cors:Frontend must contain at least one absolute frontend origin.");
-
 builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    .WithOrigins(configuredOrigins.Distinct(StringComparer.OrdinalIgnoreCase).ToArray())
-    .AllowAnyHeader()
-    .AllowAnyMethod()
-    .AllowCredentials()));
+    .WithOrigins(builder.Configuration["Cors:Frontend"] ?? "http://localhost:5173")
+    .AllowAnyHeader().AllowAnyMethod()));
 builder.Services.AddRateLimiter(options => options.AddPolicy("public", context =>
     RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
     {
         PermitLimit = 30,
         Window = TimeSpan.FromMinutes(1),
-        QueueLimit = 0
-    })));
-builder.Services.AddRateLimiter(options => options.AddPolicy("auth", context =>
-    RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
-    {
-        PermitLimit = 5,
-        Window = TimeSpan.FromMinutes(1),
-        QueueLimit = 0
-    })));
-builder.Services.AddRateLimiter(options => options.AddPolicy("profile-upload", context =>
-    RateLimitPartition.GetFixedWindowLimiter(context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
-    {
-        PermitLimit = 10,
-        Window = TimeSpan.FromHours(1),
         QueueLimit = 0
     })));
 
@@ -78,21 +49,6 @@ using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<DatabaseInitializer>().InitializeAsync(CancellationToken.None);
 }
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-app.UseStaticFiles();
-if (app.Environment.IsDevelopment())
-{
-    var uploadsDirectory = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot"), "uploads");
-    Directory.CreateDirectory(uploadsDirectory);
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = new PhysicalFileProvider(uploadsDirectory),
-        RequestPath = "/uploads",
-        OnPrepareResponse = context =>
-        {
-            context.Context.Response.Headers.CacheControl = "public, max-age=0, must-revalidate";
-        },
-    });
-}
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.StartsWithSegments("/api/playground") && context.Request.Method != HttpMethods.Get)

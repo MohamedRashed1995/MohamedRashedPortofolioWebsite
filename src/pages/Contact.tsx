@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, CheckCircle2, Loader2, AlertCircle, Clock, Mail, MapPin, Briefcase, Linkedin, Github } from 'lucide-react';
+import { Send, CheckCircle2, Loader2, AlertCircle, Clock, Mail, MapPin, Briefcase } from 'lucide-react';
 import { useSubmitInquiry } from '@/hooks/useSubmitInquiry';
 import PageHeader from '@/components/PageHeader';
 import PageTransition from '@/components/PageTransition';
@@ -106,33 +106,6 @@ export default function Contact() {
                   <div>
                     <p className="font-semibold text-theme-text">{t('contact.availability')}</p>
                     <p className="text-theme-muted mt-0.5">{t('contact.availabilityValue')}</p>
-                  </div>
-                </div>
-
-                {/* Social & Professional Networks */}
-                <div className="pt-4 border-t border-theme-border space-y-2">
-                  <p className="text-xs font-semibold text-theme-text">
-                    {isRTL ? 'الشبكات المهنية والملفات الشخصية' : 'Professional Profiles'}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href="https://www.linkedin.com/in/mohamed-rashed%E2%80%AC%E2%80%AF-642248283"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-theme-bg-sec border border-theme-border text-theme-text hover:text-theme-accent hover:border-theme-accent text-xs font-medium transition-all duration-200"
-                    >
-                      <Linkedin className="w-4 h-4 text-theme-accent" />
-                      <span>LinkedIn</span>
-                    </a>
-                    <a
-                      href="https://github.com/MohamedRashed1995"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-theme-bg-sec border border-theme-border text-theme-text hover:text-theme-accent hover:border-theme-accent text-xs font-medium transition-all duration-200"
-                    >
-                      <Github className="w-4 h-4 text-theme-accent" />
-                      <span>GitHub</span>
-                    </a>
                   </div>
                 </div>
               </div>

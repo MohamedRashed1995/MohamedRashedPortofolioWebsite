@@ -15,7 +15,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<AiEvaluationCase> AiEvaluationCases => Set<AiEvaluationCase>();
     public DbSet<GithubMetricsCache> GithubMetricsCaches => Set<GithubMetricsCache>();
-    public DbSet<SiteMedia> SiteMedia => Set<SiteMedia>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Portfolio.Application.DTOs;
 using Portfolio.Domain.Entities;
 
 namespace Portfolio.Infrastructure.Persistence;
@@ -10,6 +12,27 @@ public sealed class DatabaseInitializer(ApplicationDbContext db, IPasswordHasher
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
         await db.Database.MigrateAsync(cancellationToken);
+        if (!await db.GithubMetricsCaches.AnyAsync(cancellationToken))
+        {
+            var initialLanguages = new[]
+            {
+                new GithubLanguageDto("C#", 68.8m),
+                new GithubLanguageDto("TypeScript", 23.8m),
+                new GithubLanguageDto("TSQL", 6.5m),
+                new GithubLanguageDto("CSS", 0.4m),
+                new GithubLanguageDto("JavaScript", 0.3m)
+            };
+            db.GithubMetricsCaches.Add(new GithubMetricsCache
+            {
+                Id = Guid.NewGuid(),
+                TotalRepos = 10,
+                TotalCommitsLast90Days = 36,
+                TopLanguagesJson = JsonSerializer.Serialize(initialLanguages, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                LastSyncedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
         if (!await db.Projects.AnyAsync(cancellationToken))
         {
             var projects = new[]
@@ -67,11 +90,9 @@ public sealed class DatabaseInitializer(ApplicationDbContext db, IPasswordHasher
             await db.SaveChangesAsync(cancellationToken);
         }
 
-        var adminEmail = (configuration["Admin:Email"]?.Trim().ToLowerInvariant()) ?? "mrashed19951995@gmail.com";
+        var adminEmail = configuration["Admin:Email"]?.Trim().ToLowerInvariant();
         var adminPassword = configuration["Admin:Password"];
-        if (string.IsNullOrWhiteSpace(adminPassword))
-            throw new InvalidOperationException("Admin:Password must be configured before initializing the database.");
-        if (!await db.AdminUsers.AnyAsync(cancellationToken))
+        if (!string.IsNullOrWhiteSpace(adminEmail) && !string.IsNullOrWhiteSpace(adminPassword) && !await db.AdminUsers.AnyAsync(cancellationToken))
         {
             var admin = new AdminUser { Id = Guid.NewGuid(), Email = adminEmail, PasswordHash = string.Empty, Role = "Admin", CreatedAt = DateTime.UtcNow };
             admin.PasswordHash = passwordHasher.HashPassword(admin, adminPassword);

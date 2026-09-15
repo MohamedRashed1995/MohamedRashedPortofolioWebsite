@@ -3,10 +3,9 @@ import { motion } from 'framer-motion';
 import { UploadCloud, RotateCcw, Check, AlertCircle, Sparkles, Eye } from 'lucide-react';
 import { useProfileImage } from '@/context/ProfileImageContext';
 import { useLanguage } from '@/context/LanguageContext';
-import { withCacheVersion } from '@/utils/imageUrls';
 
 export const AdminImageManager: React.FC = () => {
-  const { profileImage, profileImageVersion, hasCustomImage, setCustomImage, resetToDefault } = useProfileImage();
+  const { profileImage, hasCustomImage, setCustomImage, resetToDefault } = useProfileImage();
   const { isRTL } = useLanguage();
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -51,12 +50,8 @@ export const AdminImageManager: React.FC = () => {
           }
 
           ctx.drawImage(img, 0, 0, width, height);
-          const webpDataUrl = canvas.toDataURL('image/webp', 0.86);
-          resolve(
-            webpDataUrl.startsWith('data:image/webp')
-              ? webpDataUrl
-              : canvas.toDataURL('image/jpeg', 0.9)
-          );
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+          resolve(dataUrl);
         };
         img.onerror = () => reject(new Error('Invalid image file'));
         img.src = e.target?.result as string;
@@ -111,11 +106,11 @@ export const AdminImageManager: React.FC = () => {
   };
 
   const handleApplyImage = async () => {
-    if (!selectedFile) return;
+    if (!previewUrl) return;
     setIsProcessing(true);
     setErrorMessage(null);
     try {
-      await setCustomImage(selectedFile);
+      await setCustomImage(previewUrl);
       setSuccessMessage(isRTL ? 'تم تحديث صورتك الشخصية بنجاح عبر جميع صفحات الموقع!' : 'Profile image successfully updated across the entire site!');
       setSelectedFile(null);
       setPreviewUrl(null);
@@ -126,19 +121,11 @@ export const AdminImageManager: React.FC = () => {
     }
   };
 
-  const handleReset = async () => {
-    setIsProcessing(true);
-    setErrorMessage(null);
-    try {
-      await resetToDefault();
-      setPreviewUrl(null);
-      setSelectedFile(null);
-      setSuccessMessage(isRTL ? 'تمت استعادة الصورة الافتراضية بنجاح.' : 'Default original photo restored.');
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to reset image');
-    } finally {
-      setIsProcessing(false);
-    }
+  const handleReset = () => {
+    resetToDefault();
+    setPreviewUrl(null);
+    setSelectedFile(null);
+    setSuccessMessage(isRTL ? 'تمت استعادة الصورة الافتراضية بنجاح.' : 'Default original photo restored.');
   };
 
   return (
@@ -287,7 +274,7 @@ export const AdminImageManager: React.FC = () => {
                 <div className="relative p-1.5 rounded-full bg-theme-card border border-theme-accent/40 shadow-xl">
                   <div className="w-36 h-36 rounded-full overflow-hidden ring-4 ring-theme-accent/20 border-2 border-theme-accent">
                     <img
-                      src={previewUrl || withCacheVersion(profileImage, profileImageVersion)}
+                      src={previewUrl || profileImage}
                       alt="Mohamed Rashed"
                       className="w-full h-full object-cover object-top"
                     />

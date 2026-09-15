@@ -1,36 +1,24 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Briefcase, GraduationCap, Sparkles, Target, FileDown, Eye, Linkedin, Github } from 'lucide-react';
+import { Briefcase, GraduationCap, Sparkles, Target, FileDown, Eye } from 'lucide-react';
 import PageHeader from '@/components/PageHeader';
 import PageTransition from '@/components/PageTransition';
 import { useLanguage } from '@/context/LanguageContext';
 import { useProfileImage } from '@/context/ProfileImageContext';
-import { useSiteContent } from '@/hooks/useSiteContent';
 import { CvPreviewModal } from '@/components/CvPreviewModal';
 import { downloadCvPdf } from '@/utils/downloadCv';
-import { createImageSources } from '@/utils/imageUrls';
 
 export default function About() {
   const { t, isRTL } = useLanguage();
-  const { profileImage, profileImageVersion } = useProfileImage();
-  const profileImageSources = createImageSources(profileImage, profileImageVersion);
-  const { content: siteContent } = useSiteContent();
+  const { profileImage } = useProfileImage();
   const [cvModalOpen, setCvModalOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   const handleDownloadCv = async () => {
     setDownloading(true);
-    await downloadCvPdf(siteContent.cvFileName || 'Mohamed_Rashed_CV.pdf');
+    await downloadCvPdf('Mohamed_Rashed_CV.pdf');
     setDownloading(false);
   };
-
-  const name = isRTL && siteContent.nameAr ? siteContent.nameAr : siteContent.name || 'Mohamed Rashed Abdelazim';
-  const role = isRTL && siteContent.titleRoleAr ? siteContent.titleRoleAr : siteContent.titleRole || 'Full-Stack .NET Engineer';
-  const location = isRTL && siteContent.locationAr ? siteContent.locationAr : siteContent.location || t('contact.locationValue');
-  const bioHeading = isRTL && siteContent.bioHeadingAr ? siteContent.bioHeadingAr : siteContent.bioHeading || t('about.bioHeading');
-  const bioP1 = isRTL && siteContent.bioParagraph1Ar ? siteContent.bioParagraph1Ar : siteContent.bioParagraph1 || t('about.bioParagraph1');
-  const bioP2 = isRTL && siteContent.bioParagraph2Ar ? siteContent.bioParagraph2Ar : siteContent.bioParagraph2 || t('about.bioParagraph2');
-  const bioP3 = isRTL && siteContent.bioParagraph3Ar ? siteContent.bioParagraph3Ar : siteContent.bioParagraph3 || t('about.bioParagraph3');
 
   const highlights = [
     {
@@ -85,27 +73,23 @@ export default function About() {
                 <div className="relative w-36 h-36 mx-auto mb-4 group">
                   <div className="absolute -inset-1.5 bg-gradient-to-r from-theme-accent via-theme-accent/50 to-theme-accent-sec rounded-full blur-md opacity-45 group-hover:opacity-75 transition duration-300" />
                   <div className="relative w-36 h-36 rounded-full overflow-hidden ring-4 ring-theme-accent/25 border-2 border-theme-accent shadow-lg bg-slate-950">
-                    <picture>
-                      {profileImageSources.avif && <source srcSet={profileImageSources.avif} type="image/avif" />}
-                      {profileImageSources.webp && <source srcSet={profileImageSources.webp} type="image/webp" />}
-                      <img
-                        src={profileImageSources.original}
-                        alt="Mohamed Rashed Abdelazim"
-                        className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                      />
-                    </picture>
+                    <img
+                      src={profileImage}
+                      alt="Mohamed Rashed Abdelazim"
+                      className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
                   </div>
                 </div>
                 <h2 className="text-xl font-bold text-theme-text">
-                  {name}
+                  Mohamed Rashed Abdelazim
                 </h2>
                 <p className="text-sm font-semibold text-theme-accent mt-1">
-                  {role}
+                  Full-Stack .NET Engineer
                 </p>
                 <p className="text-xs text-theme-muted mt-1 font-mono">
-                  {location}
+                  {t('contact.locationValue')}
                 </p>
 
                 <div className="mt-5 pt-5 border-t border-theme-border flex flex-wrap justify-center gap-1.5">
@@ -135,29 +119,6 @@ export default function About() {
                     <Eye className="w-3.5 h-3.5 text-theme-accent" />
                     <span>{isRTL ? 'معاينة الـ CV مباشرة' : 'Preview CV in Viewer'}</span>
                   </button>
-
-                  <div className="pt-3 border-t border-theme-border flex items-center justify-center gap-2">
-                    <a
-                      href="https://www.linkedin.com/in/mohamed-rashed%E2%80%AC%E2%80%AF-642248283"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 btn-ghost text-xs py-2 flex items-center justify-center gap-1.5 hover:text-theme-accent border border-theme-border"
-                      title="LinkedIn Profile"
-                    >
-                      <Linkedin className="w-3.5 h-3.5 text-theme-accent" />
-                      <span>LinkedIn</span>
-                    </a>
-                    <a
-                      href="https://github.com/MohamedRashed1995"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 btn-ghost text-xs py-2 flex items-center justify-center gap-1.5 hover:text-theme-accent border border-theme-border"
-                      title="GitHub Profile"
-                    >
-                      <Github className="w-3.5 h-3.5 text-theme-accent" />
-                      <span>GitHub</span>
-                    </a>
-                  </div>
                 </div>
               </motion.div>
             </div>
@@ -172,12 +133,12 @@ export default function About() {
                 className="card p-6 sm:p-8 bg-theme-card border border-theme-border shadow-sm"
               >
                 <h3 className="text-xl font-extrabold text-theme-text mb-4">
-                  {bioHeading}
+                  {t('about.bioHeading')}
                 </h3>
                 <div className="space-y-4 text-sm sm:text-base text-theme-text-sec leading-relaxed">
-                  <p>{bioP1}</p>
-                  <p>{bioP2}</p>
-                  <p>{bioP3}</p>
+                  <p>{t('about.bioParagraph1')}</p>
+                  <p>{t('about.bioParagraph2')}</p>
+                  <p>{t('about.bioParagraph3')}</p>
                 </div>
               </motion.div>
 

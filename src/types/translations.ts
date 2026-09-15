@@ -1,3 +1,5 @@
+export type TranslationKey = string;
+
 export interface TranslationKeys {
   nav: {
     home: string;

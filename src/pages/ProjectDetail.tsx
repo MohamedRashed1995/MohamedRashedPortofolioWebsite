@@ -16,7 +16,6 @@ import { useProjectBySlug } from '@/hooks/useProjects';
 import ApiPlayground from '@/components/ApiPlayground';
 import SchemaViewer from '@/components/SchemaViewer';
 import PageTransition from '@/components/PageTransition';
-import ProjectImage from '@/components/ProjectImage';
 import { useLanguage } from '@/context/LanguageContext';
 
 export default function ProjectDetail() {
@@ -113,23 +112,17 @@ export default function ProjectDetail() {
               </div>
             </div>
 
-            {/* Project Preview Image Banner / Resilient Fallback */}
-            <div className="mt-8 rounded-2xl overflow-hidden border border-theme-border/80 shadow-2xl bg-theme-bg-sec">
-              <ProjectImage
-                src={project.image}
-                alt={project.title}
-                title={project.title}
-                titleAr={project.titleAr}
-                slug={project.slug}
-                tags={project.tags}
-                version={project.imageVersion}
-                priority
-                className="w-full max-h-[460px]"
-                imgClassName="w-full max-h-[460px] object-cover object-top"
-                aspectRatio="wide"
-                showSnippetPreview={true}
-              />
-            </div>
+            {/* Project Preview Image Banner */}
+            {project.image && (
+              <div className="mt-8 rounded-2xl overflow-hidden border border-theme-border/80 shadow-2xl bg-slate-950">
+                <img
+                  src={project.image}
+                  alt={project.title}
+                  className="w-full max-h-[460px] object-cover object-top"
+                  loading="eager"
+                />
+              </div>
+            )}
           </motion.div>
         </div>
       </section>

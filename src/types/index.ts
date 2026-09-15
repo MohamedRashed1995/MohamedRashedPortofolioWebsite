@@ -22,7 +22,6 @@ export interface Project {
   period: string;
   featured: boolean;
   image?: string;
-  imageVersion?: string;
   repoUrl?: string;
   liveUrl?: string;
   thumbnailColor: string;
@@ -33,7 +32,7 @@ export interface Project {
 }
 
 export interface ArchitectureLayer {
-  name: 'Domain' | 'Application' | 'Infrastructure' | 'WebApi';
+  name: string;
   nameAr?: string;
   description: string;
   descriptionAr?: string;
@@ -122,42 +121,39 @@ export interface TechStackItem {
 
 export type TechStackCategory = TechStackItem;
 
-export interface SiteContent {
+export interface TechnologyDto {
+  id: string;
   name: string;
-  nameAr?: string;
-  titleRole: string;
-  titleRoleAr?: string;
-  heroBadge: string;
-  heroBadgeAr?: string;
-  heroSubtitle: string;
-  heroSubtitleAr?: string;
-  statsExperience: string;
-  statsExperienceLabel: string;
-  statsExperienceLabelAr?: string;
-  statsProjects: string;
-  statsProjectsLabel: string;
-  statsProjectsLabelAr?: string;
-  statsArchitecture: string;
-  statsArchitectureLabel: string;
-  statsArchitectureLabelAr?: string;
-  statsAiEvaluations: string;
-  statsAiEvaluationsLabel: string;
-  statsAiEvaluationsLabelAr?: string;
-  cvUrl?: string;
-  cvFileName?: string;
-  email: string;
-  location: string;
-  locationAr?: string;
-  availability: string;
-  availabilityAr?: string;
-  githubUrl: string;
-  linkedinUrl: string;
-  bioHeading: string;
-  bioHeadingAr?: string;
-  bioParagraph1: string;
-  bioParagraph1Ar?: string;
-  bioParagraph2: string;
-  bioParagraph2Ar?: string;
-  bioParagraph3: string;
-  bioParagraph3Ar?: string;
+  category: string;
+  icon?: string | null;
+  description?: string | null;
+}
+
+export interface BackendProjectDto {
+  id: string;
+  title: string;
+  slug: string;
+  shortDescription: string;
+  description: string;
+  role: string;
+  featured: boolean;
+  period: string;
+  repoUrl?: string | null;
+  thumbnailColor: string;
+  technologies: string[];
+  metrics: { label: string; value: string }[];
+  endpoints: {
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    path: string;
+    description: string;
+    authenticationRequired: boolean;
+    isPublicDemo: boolean;
+    sampleResponse: unknown;
+  }[];
+  architectureLayers: {
+    name: string;
+    description: string;
+    responsibilities: string[];
+  }[];
+  schemaTables: SchemaTable[];
 }

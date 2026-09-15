@@ -1,49 +1,369 @@
 // src/services/api.ts
-import type { GitHubMetrics, Project, TechStackCategory, AiEvaluationCase, Inquiry } from '@/types';
-import {
-  getStoredInquiries,
-  addInquiryToStore,
-  updateInquiryStatusInStore,
-  getStoredProjects,
-  getStoredTechStack,
-} from '@/services/dataStorage';
+import type {
+  GitHubMetrics,
+  Project,
+  TechStackCategory,
+  AiEvaluationCase,
+  Inquiry,
+  TechnologyDto,
+  BackendProjectDto,
+  ApiEndpoint,
+  ArchitectureLayer,
+} from '@/types';
+import { SEED_PROJECTS, githubMetrics, SEED_TECH_STACK, SEED_AI_CASES } from '@/data/seed';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
+export const PROD_BACKEND_URL = 'https://mohamedrashedportofolio.runasp.net';
+export const ADMIN_TOKEN_KEY = 'admin_access_token';
 
-interface ProfileImageResponse {
-  url: string;
-  version: string;
-  contentType: string;
-  updatedAt: string;
-}
+export class ApiError extends Error {
+  status: number;
+  data: unknown;
 
-function getAdminToken(): string | undefined {
-  try {
-    const raw = localStorage.getItem('admin_access_token');
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as { token?: string };
-    return parsed.token;
-  } catch {
-    return undefined;
+  constructor(message: string, status: number, data?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
   }
 }
 
-function resolveMediaUrl(url: string): string {
-  return new URL(url, API_BASE_URL).toString();
+export function getAdminToken(): string | null {
+  try {
+    return localStorage.getItem(ADMIN_TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
-async function readApiError(response: Response): Promise<string> {
+export function setAdminToken(token: string): void {
   try {
-    const body = (await response.json()) as { message?: string };
-    return body.message || `Request failed with status ${response.status}.`;
+    localStorage.setItem(ADMIN_TOKEN_KEY, token);
   } catch {
-    return `Request failed with status ${response.status}.`;
+    // ignore
+  }
+}
+
+export function clearAdminToken(): void {
+  try {
+    localStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export function getApiBaseUrl(): string {
+  const configured = import.meta.env.VITE_API_BASE_URL;
+  if (configured && typeof configured === 'string' && configured.trim().length > 0) {
+    if (configured.includes('localhost') || configured.includes('127.0.0.1')) {
+      return '';
+    }
+    return configured.replace(/\/+$/, '');
+  }
+  // If running in production build, default directly to production ASP.NET Core backend
+  if (import.meta.env.PROD) {
+    return PROD_BACKEND_URL;
+  }
+  // In development, return empty string so calls go through Vite proxy to http://mohamedrashedportofolio.runasp.net
+  return '';
+}
+
+export function buildApiUrl(endpoint: string): string {
+  const base = getApiBaseUrl();
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return base ? `${base}${path}` : path;
+}
+
+export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const url = buildApiUrl(endpoint);
+  const headers = new Headers(options.headers || {});
+
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json');
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  });
+
+  if (response.status === 401) {
+    clearAdminToken();
+    throw new ApiError('Unauthorized: Invalid or expired session.', 401);
+  }
+
+  if (response.status === 204) {
+    return null as T;
+  }
+
+  const contentType = response.headers.get('content-type');
+  const isJson = contentType && contentType.includes('application/json');
+
+  if (!response.ok) {
+    let errorMsg = `Request failed with status ${response.status}`;
+    let errorData = null;
+    if (isJson) {
+      try {
+        errorData = await response.json();
+        if (errorData && typeof errorData === 'object') {
+          errorMsg = (errorData as { message?: string; title?: string }).message || (errorData as { message?: string; title?: string }).title || errorMsg;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    throw new ApiError(errorMsg, response.status, errorData);
+  }
+
+  if (isJson) {
+    return (await response.json()) as T;
+  }
+
+  return (await response.text()) as unknown as T;
+}
+
+export function mapBackendProjectToProject(dto: BackendProjectDto): Project {
+  // Find matching seed project if available to preserve rich localization and screenshot assets
+  const seedMatch = SEED_PROJECTS.find((p) => p.slug === dto.slug || p.id === dto.id);
+
+  const tags =
+    Array.isArray(dto.technologies) && dto.technologies.length > 0
+      ? dto.technologies
+      : (dto as unknown as { tags?: string[] }).tags || seedMatch?.tags || [];
+
+  const longDescription =
+    dto.description || (dto as unknown as { longDescription?: string }).longDescription || dto.shortDescription || '';
+
+  const endpoints: ApiEndpoint[] =
+    Array.isArray(dto.endpoints) && dto.endpoints.length > 0
+      ? dto.endpoints.map((e) => ({
+          method: e.method,
+          path: e.path,
+          description: e.description,
+          sampleResponse: e.sampleResponse,
+        }))
+      : (dto as unknown as { apiEndpoints?: ApiEndpoint[] }).apiEndpoints || seedMatch?.apiEndpoints || [];
+
+  const layers: ArchitectureLayer[] =
+    Array.isArray(dto.architectureLayers) && dto.architectureLayers.length > 0
+      ? dto.architectureLayers.map((l) => ({
+          name: l.name,
+          nameAr: seedMatch?.layers?.find((sl) => sl.name === l.name)?.nameAr,
+          description: l.description,
+          descriptionAr: seedMatch?.layers?.find((sl) => sl.name === l.name)?.descriptionAr,
+          responsibilities: l.responsibilities,
+          responsibilitiesAr: seedMatch?.layers?.find((sl) => sl.name === l.name)?.responsibilitiesAr,
+        }))
+      : (dto as unknown as { layers?: ArchitectureLayer[] }).layers || seedMatch?.layers || [];
+
+  return {
+    id: dto.id,
+    slug: dto.slug,
+    title: dto.title,
+    titleAr: seedMatch?.titleAr,
+    shortDescription: dto.shortDescription,
+    shortDescriptionAr: seedMatch?.shortDescriptionAr,
+    longDescription,
+    longDescriptionAr: seedMatch?.longDescriptionAr,
+    keyFeatures: seedMatch?.keyFeatures,
+    tags,
+    role: dto.role || seedMatch?.role || 'Full-Stack Engineer',
+    roleAr: seedMatch?.roleAr,
+    period: dto.period || seedMatch?.period || '2023 — Present',
+    featured: Boolean(dto.featured),
+    image: seedMatch?.image,
+    repoUrl: dto.repoUrl || seedMatch?.repoUrl,
+    liveUrl: seedMatch?.liveUrl,
+    thumbnailColor:
+      dto.thumbnailColor || seedMatch?.thumbnailColor || 'from-blue-600/20 via-cyan-600/10 to-transparent',
+    layers,
+    apiEndpoints: endpoints,
+    schemaTables: dto.schemaTables || seedMatch?.schemaTables,
+    databaseSchema: dto.schemaTables || seedMatch?.databaseSchema,
+  };
+}
+
+export async function fetchProjects(): Promise<Project[]> {
+  try {
+    const res = await apiFetch<BackendProjectDto[]>('/api/v1/projects');
+    if (Array.isArray(res) && res.length > 0) {
+      return res.map(mapBackendProjectToProject);
+    }
+    return SEED_PROJECTS;
+  } catch (err) {
+    console.warn('Projects API request failed; using local fallback.', err);
+    return SEED_PROJECTS;
+  }
+}
+
+export async function fetchProjectBySlug(slug: string): Promise<Project | null> {
+  try {
+    const raw = await apiFetch<BackendProjectDto>(`/api/v1/projects/${encodeURIComponent(slug)}`);
+    if (raw && typeof raw === 'object' && raw.title) {
+      return mapBackendProjectToProject(raw);
+    }
+    const seed = SEED_PROJECTS.find((p) => p.slug === slug || p.id === slug);
+    return seed || null;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      const seed = SEED_PROJECTS.find((p) => p.slug === slug || p.id === slug);
+      return seed || null;
+    }
+    console.warn(`Project (${slug}) API request failed; checking seed fallback.`, err);
+    const seed = SEED_PROJECTS.find((p) => p.slug === slug || p.id === slug);
+    if (seed) return seed;
+    throw err;
+  }
+}
+
+export function normalizeGithubMetrics(raw: unknown): GitHubMetrics {
+  const fallback = githubMetrics;
+  if (!raw || typeof raw !== 'object') {
+    return fallback;
+  }
+
+  const res = raw as Record<string, unknown>;
+
+  // Normalize top languages
+  let languages: { language: string; percentage: number }[] = [];
+  const rawLangs = Array.isArray(res.topLanguages)
+    ? res.topLanguages
+    : Array.isArray(res.languages)
+      ? res.languages
+      : [];
+
+  if (rawLangs.length > 0) {
+    const validMap = new Map<string, number>();
+
+    for (const item of rawLangs) {
+      if (!item || typeof item !== 'object') continue;
+      const record = item as Record<string, unknown>;
+
+      // Check language / name / Language / Name
+      const nameCandidate =
+        record.language ??
+        record.name ??
+        record.Language ??
+        record.Name;
+
+      if (typeof nameCandidate !== 'string') continue;
+      const cleanName = nameCandidate.trim();
+      if (
+        !cleanName ||
+        cleanName.toLowerCase() === 'null' ||
+        cleanName.toLowerCase() === 'undefined' ||
+        cleanName.toLowerCase() === 'unknown'
+      ) {
+        continue;
+      }
+
+      // Disallow generic placeholder labels
+      if (/^language\s*\d*$/i.test(cleanName) || cleanName.toLowerCase() === 'top language') {
+        continue;
+      }
+
+      // Check percentage / percent / Percentage / Percent
+      const pctCandidate =
+        record.percentage ??
+        record.percent ??
+        record.Percentage ??
+        record.Percent;
+
+      const num = Number(pctCandidate);
+      if (isNaN(num) || !isFinite(num)) continue;
+
+      const clamped = Math.max(0, Math.min(100, Math.round(num * 10) / 10));
+      // Only keep entries with meaningful positive percentages
+      if (clamped > 0) {
+        validMap.set(cleanName, (validMap.get(cleanName) || 0) + clamped);
+      }
+    }
+
+    if (validMap.size > 0) {
+      languages = Array.from(validMap.entries()).map(([lang, pct]) => ({
+        language: lang,
+        percentage: Math.min(100, pct),
+      }));
+    }
+  }
+
+  // If real languages are not present or empty from backend sync, use curated seed fallback
+  const finalLanguages = languages.length > 0 ? languages : fallback.topLanguages;
+
+  const totalReposNum = Number(res.totalRepos);
+  const totalRepos = !isNaN(totalReposNum) && totalReposNum > 0 ? totalReposNum : fallback.totalRepos;
+
+  const commitsNum = Number(res.totalCommitsLast90Days ?? (res as { totalCommits?: unknown }).totalCommits);
+  const totalCommits = !isNaN(commitsNum) && commitsNum > 0 ? commitsNum : fallback.totalCommitsLast90Days;
+
+  const lastSynced =
+    typeof res.lastSyncedAt === 'string' && res.lastSyncedAt.trim() && !isNaN(new Date(res.lastSyncedAt).getTime())
+      ? res.lastSyncedAt
+      : fallback.lastSyncedAt;
+
+  return {
+    totalRepos,
+    topLanguages: finalLanguages,
+    totalCommitsLast90Days: totalCommits,
+    lastSyncedAt: lastSynced,
+  };
+}
+
+export async function fetchGithubMetrics(): Promise<GitHubMetrics> {
+  try {
+    const res = await apiFetch<unknown>('/api/v1/github/metrics');
+    return normalizeGithubMetrics(res);
+  } catch {
+    return normalizeGithubMetrics(null);
+  }
+}
+
+export async function fetchTechnologies(): Promise<TechnologyDto[]> {
+  try {
+    const list = await apiFetch<TechnologyDto[]>('/api/v1/technologies');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchTechStack(): Promise<TechStackCategory[]> {
+  try {
+    const technologies = await fetchTechnologies();
+    if (technologies.length > 0) {
+      const grouped: Record<string, { name: string; proficiency: number }[]> = {};
+      for (const tech of technologies) {
+        if (!grouped[tech.category]) {
+          grouped[tech.category] = [];
+        }
+        let prof = 80;
+        const seedCat = SEED_TECH_STACK.find((c) => c.category === tech.category);
+        const seedItem = seedCat?.items.find((i) => i.name.toLowerCase() === tech.name.toLowerCase());
+        if (seedItem) {
+          prof = seedItem.proficiency;
+        }
+        grouped[tech.category].push({ name: tech.name, proficiency: prof });
+      }
+      return Object.entries(grouped).map(([category, items]) => ({ category, items }));
+    }
+    return SEED_TECH_STACK;
+  } catch {
+    return SEED_TECH_STACK;
+  }
+}
+
+export async function fetchAiCases(): Promise<AiEvaluationCase[]> {
+  try {
+    const res = await apiFetch<AiEvaluationCase[]>('/api/v1/ai/cases');
+    return Array.isArray(res) && res.length > 0 ? res : SEED_AI_CASES;
+  } catch {
+    return SEED_AI_CASES;
   }
 }
 
 export interface CreateInquiryInput {
   name: string;
   email: string;
+  company?: string;
   message: string;
   inquiryType: Inquiry['inquiryType'];
 }
@@ -54,126 +374,104 @@ export interface CreateInquiryResult {
   createdAt: string;
 }
 
-export async function fetchProjects(): Promise<Project[]> {
-  return getStoredProjects();
-}
-
-export async function fetchGithubMetrics(): Promise<GitHubMetrics> {
-  return {
-    totalRepos: 18,
-    topLanguages: [
-      { language: 'C#', percentage: 65 },
-      { language: 'TypeScript', percentage: 20 },
-      { language: 'SQL', percentage: 10 },
-      { language: 'Docker / YAML', percentage: 5 },
-    ],
-    totalCommitsLast90Days: 142,
-    lastSyncedAt: new Date().toISOString(),
-  };
-}
-
-export async function fetchTechStack(): Promise<TechStackCategory[]> {
-  return getStoredTechStack();
-}
-
-export async function fetchAiCases(): Promise<AiEvaluationCase[]> {
-  return [
-    {
-      id: 'case-1',
-      title: 'EF Core N+1 Query & AsNoTracking Misconfiguration',
-      category: 'Backend / EF Core',
-      flawedResponse: 'AI generated a query fetching child collections inside a foreach loop without eager loading.',
-      identifiedFlaw: 'Severe database roundtrip explosion and memory saturation.',
-      correctedEvaluation: 'Replaced with `.Include()` / projection with `.AsNoTracking()` and split query.',
-      takeaway: 'Code evaluation caught 85% query degradation before production merge.',
-    },
-    {
-      id: 'case-2',
-      title: 'Race Condition in SignalR Multi-Tenant Hub',
-      category: 'Concurrency / Distributed',
-      flawedResponse: 'AI utilized a static dictionary without `ConcurrentDictionary` or distributed locks.',
-      identifiedFlaw: 'Thread contention and potential state corruption across tenant connections.',
-      correctedEvaluation: 'Implemented thread-safe `ConcurrentDictionary` with Redis backplane.',
-      takeaway: 'Crucial verification for high-throughput real-time systems.',
-    },
-  ];
-}
-
 export async function submitInquiry(input: CreateInquiryInput): Promise<CreateInquiryResult> {
-  await new Promise((resolve) => setTimeout(resolve, 400));
-  const newInq = addInquiryToStore(input);
+  const payload = {
+    name: input.name,
+    email: input.email,
+    company: input.company || null,
+    inquiryType: input.inquiryType,
+    message: input.message,
+  };
+
+  const res = await apiFetch<CreateInquiryResult>('/api/v1/contact/inquiries', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
   return {
-    id: newInq.id,
-    status: newInq.status,
-    createdAt: newInq.createdAt,
+    id: res.id,
+    status: res.status,
+    createdAt: res.createdAt,
   };
 }
 
-export async function fetchInquiries(): Promise<Inquiry[]> {
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  return getStoredInquiries();
-}
+export async function loginAdmin(email: string, password?: string): Promise<{ accessToken: string; expiresAt?: string }> {
+  if (!email || !password) {
+    throw new Error('Email and password are required.');
+  }
 
-export interface AdminAuthResult {
-  accessToken: string;
-  user?: {
-    email: string;
-    role: string;
-  };
-}
-
-export async function loginAdmin(email?: string, password?: string): Promise<AdminAuthResult> {
-  const response = await fetch(`${API_BASE_URL}/admin/auth/login`, {
+  const result = await apiFetch<{ accessToken: string; expiresAt: string }>('/api/v1/admin/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  if (!response.ok) throw new Error(await readApiError(response));
 
-  const result = (await response.json()) as { accessToken: string; expiresAt: string };
-  localStorage.setItem('admin_access_token', JSON.stringify({ token: result.accessToken, expiresAt: result.expiresAt }));
-  return { accessToken: result.accessToken, user: { email: email || '', role: 'Admin' } };
+  if (!result || !result.accessToken) {
+    throw new Error('Invalid authentication response from server.');
+  }
+
+  setAdminToken(result.accessToken);
+  return result;
 }
 
-export async function fetchProfileImage(): Promise<ProfileImageResponse | null> {
-  const response = await fetch(`${API_BASE_URL}/profile-image`, { cache: 'no-store' });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(await readApiError(response));
-  const result = (await response.json()) as ProfileImageResponse;
-  return { ...result, url: resolveMediaUrl(result.url) };
+export function logoutAdmin(): void {
+  clearAdminToken();
 }
 
-export async function uploadProfileImage(file: File): Promise<ProfileImageResponse> {
+export async function fetchInquiries(): Promise<Inquiry[]> {
   const token = getAdminToken();
-  if (!token) throw new Error('Your admin session has expired. Please sign in again.');
-  const formData = new FormData();
-  formData.append('file', file);
-  const response = await fetch(`${API_BASE_URL}/profile-image`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  });
-  if (!response.ok) throw new Error(await readApiError(response));
-  const result = (await response.json()) as ProfileImageResponse;
-  return { ...result, url: resolveMediaUrl(result.url) };
-}
+  if (!token) {
+    throw new ApiError('Authentication token missing. Please log in.', 401);
+  }
 
-export async function resetProfileImage(): Promise<void> {
-  const token = getAdminToken();
-  if (!token) throw new Error('Your admin session has expired. Please sign in again.');
-  const response = await fetch(`${API_BASE_URL}/profile-image`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
+  const list = await apiFetch<Array<{
+    id: string;
+    name: string;
+    email: string;
+    company?: string | null;
+    inquiryType: string;
+    message: string;
+    status: string;
+    createdAt: string;
+  }>>('/api/v1/admin/inquiries', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
   });
-  if (!response.ok) throw new Error(await readApiError(response));
+
+  if (!Array.isArray(list)) {
+    return [];
+  }
+
+  return list.map((item) => ({
+    id: item.id,
+    name: item.name,
+    email: item.email,
+    message: item.message,
+    inquiryType: (item.inquiryType as Inquiry['inquiryType']) || 'General',
+    status: (item.status as Inquiry['status']) || 'New',
+    createdAt: item.createdAt,
+  }));
 }
 
 export async function updateInquiryStatus(
   id: string,
   status: 'New' | 'Read' | 'Archived'
 ): Promise<{ success: boolean; id: string; status: string }> {
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  updateInquiryStatusInStore(id, status);
+  const token = getAdminToken();
+  if (!token) {
+    throw new ApiError('Authentication token missing. Please log in.', 401);
+  }
+
+  await apiFetch<void>(`/api/v1/admin/inquiries/${id}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status }),
+  });
+
   return { success: true, id, status };
 }
-

@@ -867,12 +867,3 @@ export const SEED_PROJECTS = projects;
 export const SEED_AI_CASES = aiEvaluationCases;
 export const SEED_TECH_STACK = techStack;
 
-export const SEED_ADMIN_USER = {
-  id: 'admin-seed-01',
-  email: 'mrashed19951995@gmail.com',
-  password: 'Password@123',
-  name: 'Mohamed Rashed Abdelazim',
-  role: 'Admin',
-  createdAt: '2026-08-28T00:00:00.000Z',
-};
-

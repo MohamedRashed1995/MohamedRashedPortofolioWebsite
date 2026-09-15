@@ -2,21 +2,19 @@ import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { useProfileImage } from '@/context/ProfileImageContext';
 import { useLanguage } from '@/context/LanguageContext';
-import { createImageSources } from '@/utils/imageUrls';
 
 export const HeroAvatar: React.FC = () => {
-  const { profileImage, profileImageVersion } = useProfileImage();
+  const { profileImage } = useProfileImage();
   const { isRTL } = useLanguage();
-  const imageSources = createImageSources(profileImage, profileImageVersion);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Snappy responsive mouse physics for 3D depth
+  // Mouse tilt physics for 3D depth
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
-  const springConfig = { damping: 22, stiffness: 300, mass: 0.5 };
-  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [8, -8]), springConfig);
-  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-8, 8]), springConfig);
+  const springConfig = { damping: 25, stiffness: 200 };
+  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [10, -10]), springConfig);
+  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-10, 10]), springConfig);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -36,31 +34,30 @@ export const HeroAvatar: React.FC = () => {
 
   return (
     <div
-      className="relative flex items-center justify-center py-4 select-none"
-      style={{ perspective: 1000, transform: 'translateZ(0)' }}
+      className="relative flex items-center justify-center py-6 select-none"
+      style={{ perspective: 1000 }}
     >
-      {/* 1. Ambient Background Soft Glow (Hardware-accelerated) */}
+      {/* 1. Ambient Background Soft Glow (Pulsing & Morphing) */}
       <motion.div
         animate={{
-          scale: isHovered ? 1.1 : [1, 1.05, 1],
-          opacity: isHovered ? 0.75 : [0.4, 0.55, 0.4],
+          scale: isHovered ? [1, 1.15, 1.08] : [1, 1.08, 1],
+          opacity: isHovered ? [0.65, 0.9, 0.75] : [0.45, 0.65, 0.45],
         }}
         transition={{
-          duration: 3.5,
+          duration: 4,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
-        style={{ willChange: 'transform, opacity', transform: 'translateZ(0)' }}
-        className="absolute -inset-6 sm:-inset-10 bg-gradient-to-tr from-theme-accent via-theme-accent-sec/30 to-theme-accent rounded-full blur-2xl pointer-events-none"
+        className="absolute -inset-6 sm:-inset-10 bg-gradient-to-tr from-theme-accent via-theme-accent-sec/40 to-theme-accent rounded-[40%_60%_70%_30%/40%_50%_60%_50%] blur-3xl pointer-events-none"
       />
 
       {/* 2. Floating 3D Container (Levitation Animation) */}
       <motion.div
         animate={{
-          y: isHovered ? 0 : [0, -8, 0],
+          y: isHovered ? 0 : [0, -14, 0],
         }}
         transition={{
-          duration: 4,
+          duration: 5.5,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
@@ -68,7 +65,6 @@ export const HeroAvatar: React.FC = () => {
           rotateX,
           rotateY,
           transformStyle: 'preserve-3d',
-          willChange: 'transform',
         }}
         onMouseMove={handleMouseMove}
         onMouseEnter={() => setIsHovered(true)}
@@ -81,16 +77,14 @@ export const HeroAvatar: React.FC = () => {
             rotate: [0, 360],
           }}
           transition={{
-            duration: isHovered ? 5 : 12,
+            duration: isHovered ? 6 : 14,
             repeat: Infinity,
             ease: 'linear',
           }}
+          className="absolute -inset-2.5 sm:-inset-3.5 rounded-[38%_62%_63%_37%/41%_44%_56%_59%] opacity-85 group-hover:opacity-100 blur-[2px] transition duration-500"
           style={{
             background: 'conic-gradient(from 0deg, var(--color-accent-primary), var(--color-accent-secondary), var(--color-accent-primary-hover), var(--color-accent-primary))',
-            willChange: 'transform',
-            transform: 'translateZ(0)',
           }}
-          className="absolute -inset-2.5 sm:-inset-3.5 rounded-[38%_62%_63%_37%/41%_44%_56%_59%] opacity-85 group-hover:opacity-100 blur-[2px] transition-opacity duration-300"
         />
 
         {/* 4. Morphing Organic Blob Frame Shell */}
@@ -106,12 +100,11 @@ export const HeroAvatar: React.FC = () => {
                 ],
           }}
           transition={{
-            duration: isHovered ? 3.5 : 8,
+            duration: isHovered ? 4 : 9,
             repeat: Infinity,
             ease: 'easeInOut',
           }}
-          style={{ willChange: 'border-radius, transform' }}
-          className="relative p-2 sm:p-2.5 bg-theme-card/90 backdrop-blur-xl border border-theme-accent/40 shadow-2xl overflow-hidden transition-colors duration-300"
+          className="relative p-2 sm:p-2.5 bg-theme-card/90 backdrop-blur-xl border border-theme-accent/40 shadow-2xl overflow-hidden transition-colors duration-500"
         >
           {/* Inner Image Container (Enlarged Responsive Scale) */}
           <motion.div
@@ -126,35 +119,27 @@ export const HeroAvatar: React.FC = () => {
                   ],
             }}
             transition={{
-              duration: isHovered ? 3.5 : 8,
+              duration: isHovered ? 4 : 9,
               repeat: Infinity,
               ease: 'easeInOut',
             }}
-            style={{ willChange: 'border-radius, transform' }}
             className="w-64 h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 lg:w-[22rem] lg:h-[22rem] xl:w-[24.5rem] xl:h-[24.5rem] overflow-hidden bg-slate-950 relative border-2 border-theme-accent/30 shadow-inner"
           >
             {/* High Definition Portrait */}
-            <picture>
-              {imageSources.avif && <source srcSet={imageSources.avif} type="image/avif" />}
-              {imageSources.webp && <source srcSet={imageSources.webp} type="image/webp" />}
-              <motion.img
-                src={imageSources.original}
-                alt="Mohamed Rashed Abdelazim"
-                className="w-full h-full object-cover object-top pointer-events-none"
-                animate={{
-                  scale: isHovered ? 1.06 : 1.01,
-                }}
-                transition={{
-                  duration: 0.3,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-                style={{ willChange: 'transform' }}
-                loading="eager"
-                fetchPriority="high"
-                decoding="async"
-                referrerPolicy="no-referrer"
-              />
-            </picture>
+            <motion.img
+              src={profileImage}
+              alt="Mohamed Rashed Abdelazim"
+              className="w-full h-full object-cover object-top pointer-events-none"
+              animate={{
+                scale: isHovered ? 1.08 : 1.02,
+              }}
+              transition={{
+                duration: 0.6,
+                ease: 'easeOut',
+              }}
+              loading="eager"
+              referrerPolicy="no-referrer"
+            />
 
             {/* Subtle Gradient Vignette Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 pointer-events-none" />
@@ -168,19 +153,18 @@ export const HeroAvatar: React.FC = () => {
         {/* 5. Floating "Open to work" Status Badge */}
         <motion.div
           animate={{
-            y: [0, -3, 0],
+            y: [0, -4, 0],
           }}
           transition={{
-            duration: 2.5,
+            duration: 3,
             repeat: Infinity,
             ease: 'easeInOut',
           }}
-          style={{ willChange: 'transform' }}
           className={`absolute -bottom-3 sm:-bottom-4 ${
             isRTL ? 'left-4 sm:left-6' : 'right-4 sm:right-6'
           } z-20`}
         >
-          <div className="group/badge relative px-4 py-2 rounded-full bg-theme-card/95 backdrop-blur-md border border-theme-accent/50 shadow-xl flex items-center gap-2.5 hover:border-theme-accent transition-all duration-150">
+          <div className="group/badge relative px-4 py-2 rounded-full bg-theme-card/95 backdrop-blur-md border border-theme-accent/50 shadow-xl flex items-center gap-2.5 hover:border-theme-accent transition-all duration-300">
             {/* Live radar pulsating beacon */}
             <span className="relative flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />

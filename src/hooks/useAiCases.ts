@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { SEED_AI_CASES } from '@/data/seed';
+import { fetchAiCases } from '@/services/api';
 import type { AiEvaluationCase } from '@/types';
 
 export function useAiCases() {
@@ -8,25 +9,33 @@ export function useAiCases() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch('/api/v1/ai-cases');
-        const contentType = response.headers.get('content-type');
-        if (response.ok && contentType && contentType.includes('application/json')) {
-          const result = await response.json();
-          if (Array.isArray(result) && result.length > 0) {
-            setData(result);
-          }
+        const result = await fetchAiCases();
+        if (isMounted) {
+          setData(Array.isArray(result) && result.length > 0 ? result : SEED_AI_CASES);
         }
-      } catch {
-        setData(SEED_AI_CASES);
+      } catch (err) {
+        if (isMounted) {
+          setData(SEED_AI_CASES);
+          setError(err instanceof Error ? err.message : 'Failed to load AI cases');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
+
     load();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return { data, loading, error };

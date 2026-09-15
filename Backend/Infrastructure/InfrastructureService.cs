@@ -13,26 +13,7 @@ public static class InfrastructureService
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured.");
-        var provider = configuration["Database:Provider"]
-            ?? (string.Equals(configuration["ASPNETCORE_ENVIRONMENT"], "Development", StringComparison.OrdinalIgnoreCase) ? "Sqlite" : "Postgres");
-
-        services.AddDbContext<ApplicationDbContext>(options =>
-        {
-            if (string.Equals(provider, "Sqlite", StringComparison.OrdinalIgnoreCase))
-            {
-                options.UseSqlite(connectionString);
-            }
-            else if (string.Equals(provider, "Postgres", StringComparison.OrdinalIgnoreCase))
-            {
-                options.UseNpgsql(connectionString);
-            }
-            else
-            {
-                throw new InvalidOperationException("Database:Provider must be either Sqlite or Postgres.");
-            }
-        });
+        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
         services.AddScoped<IProjectService, ProjectService>();
         services.AddScoped<IInquiryService, InquiryService>();
         services.AddScoped<ISchemaService, SchemaService>();

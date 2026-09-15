@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { ProfileImageProvider } from '@/context/ProfileImageContext';
-import { DataProvider } from '@/context/DataContext';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Home from '@/pages/Home';
@@ -12,37 +11,33 @@ import About from '@/pages/About';
 import TechStack from '@/pages/TechStack';
 import AiLab from '@/pages/AiLab';
 import Contact from '@/pages/Contact';
-import AdminDashboard from '@/pages/AdminDashboard';
+import Admin from '@/pages/Admin';
 import NotFound from '@/pages/NotFound';
-import { Analytics } from '@vercel/analytics/react';
 
 function App() {
   return (
     <ThemeProvider>
       <LanguageProvider>
-        <Analytics />
         <ProfileImageProvider>
-          <DataProvider>
-            <BrowserRouter>
-              <div className="min-h-screen flex flex-col bg-surface text-slate-100 antialiased selection:bg-accent-primary/20 selection:text-accent-primary">
-                <Navbar />
-                <main className="flex-1">
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/projects" element={<Projects />} />
-                    <Route path="/projects/:slug" element={<ProjectDetail />} />
-                    <Route path="/about" element={<About />} />
-                    <Route path="/tech-stack" element={<TechStack />} />
-                    <Route path="/ai-lab" element={<AiLab />} />
-                    <Route path="/contact" element={<Contact />} />
-                    <Route path="/admin" element={<AdminDashboard />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </main>
-                <Footer />
-              </div>
-            </BrowserRouter>
-          </DataProvider>
+          <BrowserRouter>
+            <div className="min-h-screen flex flex-col bg-surface text-slate-100 antialiased selection:bg-accent-primary/20 selection:text-accent-primary">
+              <Navbar />
+              <main className="flex-1">
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/projects" element={<Projects />} />
+                  <Route path="/projects/:slug" element={<ProjectDetail />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/tech-stack" element={<TechStack />} />
+                  <Route path="/ai-lab" element={<AiLab />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </main>
+              <Footer />
+            </div>
+          </BrowserRouter>
         </ProfileImageProvider>
       </LanguageProvider>
     </ThemeProvider>
@@ -50,5 +45,4 @@ function App() {
 }
 
 export default App;
-
 

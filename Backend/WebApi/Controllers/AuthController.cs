@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Portfolio.Application.DTOs;
 using Portfolio.Application.Interfaces;
 
@@ -12,7 +11,6 @@ namespace Portfolio.WebApi.Controllers;
 public sealed class AuthController(IAuthService auth) : ControllerBase
 {
     [HttpPost("login")]
-    [EnableRateLimiting("auth")]
     public async Task<ActionResult<LoginResultDto>> Login(LoginRequestDto request, CancellationToken cancellationToken)
     {
         var result = await auth.LoginAsync(request.Email, request.Password, cancellationToken);

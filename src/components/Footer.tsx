@@ -63,9 +63,9 @@ export default function Footer() {
                 <Github className="w-4 h-4" />
               </a>
               <a
-                href="https://www.linkedin.com/in/mohamed-rashed%E2%80%AC%E2%80%AF-642248283"
+                href="https://www.linkedin.com/in/mohamedrashed"
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noreferrer"
                 className="w-10 h-10 rounded-lg border border-theme-border bg-theme-bg-sec flex items-center justify-center text-theme-text-sec hover:text-theme-accent hover:border-theme-accent transition-all duration-200"
                 aria-label="LinkedIn profile"
               >
@@ -87,22 +87,12 @@ export default function Footer() {
 
         <div className="mt-10 pt-6 border-t border-theme-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-theme-muted">
           <p>© {new Date().getFullYear()} Mohamed Rashed Abdelazim. {t('footer.rights')}</p>
-          <div className="flex items-center gap-4">
-            <Link
-              to="/admin"
-              className="text-theme-muted hover:text-theme-accent transition-colors flex items-center gap-1 text-[11px]"
-              title="Admin Portal"
-            >
-              <span>لوحة التحكم</span>
-            </Link>
-            <div className="flex items-center gap-1.5">
-              <span>{t('footer.techDetails')}</span>
-              <Heart className="w-3 h-3 text-red-500 fill-current inline" />
-            </div>
+          <div className="flex items-center gap-1.5">
+            <span>{t('footer.techDetails')}</span>
+            <Heart className="w-3 h-3 text-red-500 fill-current inline" />
           </div>
         </div>
       </div>
     </footer>
   );
 }
-

@@ -1,24 +1,30 @@
-import { useEffect, useState } from 'react';
-import { fetchInquiries } from '@/services/api';
+import { useEffect, useState, useCallback } from 'react';
+import { fetchInquiries, ApiError } from '@/services/api';
 import type { Inquiry } from '@/types';
 
-export function useInquiries(enabled = true) {
+export function useInquiries(enabled = true, onUnauthorized?: () => void) {
   const [data, setData] = useState<Inquiry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const inquiries = await fetchInquiries();
       setData(inquiries);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load inquiries');
+      if (err instanceof ApiError && err.status === 401) {
+        setData([]);
+        setError('Unauthorized session. Please log in again.');
+        onUnauthorized?.();
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load inquiries');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [onUnauthorized]);
 
   useEffect(() => {
     if (!enabled) {
@@ -26,7 +32,7 @@ export function useInquiries(enabled = true) {
       return;
     }
     load();
-  }, [enabled]);
+  }, [enabled, load]);
 
   return { data, loading, error, reload: load };
 }

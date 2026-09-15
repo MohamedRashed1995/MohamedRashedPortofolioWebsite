@@ -1,26 +1,40 @@
 import { useState, useEffect } from 'react';
 import type { Project } from '@/types';
-import { getStoredProjects } from '@/services/dataStorage';
+import { SEED_PROJECTS } from '@/data/seed';
+import { fetchProjects, fetchProjectBySlug } from '@/services/api';
 
 export function useProjects() {
-  const [data, setData] = useState<Project[]>(() => getStoredProjects());
-  const [loading] = useState<boolean>(false);
-  const [error] = useState<string | null>(null);
-
+  const [data, setData] = useState<Project[]>(SEED_PROJECTS);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const handleUpdate = (e: Event) => {
-      const customEvent = e as CustomEvent<Project[]>;
-      if (customEvent.detail) {
-        setData(customEvent.detail);
-      } else {
-        setData(getStoredProjects());
-      }
-    };
+    let isMounted = true;
 
-    window.addEventListener('portfolio:projects-updated', handleUpdate);
+    async function load() {
+      try {
+        setLoading(true);
+        const projects = await fetchProjects();
+        if (isMounted) {
+          setData(projects && projects.length > 0 ? projects : SEED_PROJECTS);
+          setError(null);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setData(SEED_PROJECTS);
+          setError(err instanceof Error ? err.message : 'Failed to load projects');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    load();
+
     return () => {
-      window.removeEventListener('portfolio:projects-updated', handleUpdate);
+      isMounted = false;
     };
   }, []);
 
@@ -30,10 +44,9 @@ export function useProjects() {
 export function useProjectBySlug(slug?: string) {
   const [project, setProject] = useState<Project | null>(() => {
     if (!slug) return null;
-    const all = getStoredProjects();
-    return all.find((p) => p.slug === slug || p.id === slug) || null;
+    return SEED_PROJECTS.find((p) => p.slug === slug || p.id === slug) || null;
   });
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(Boolean(slug));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,27 +56,43 @@ export function useProjectBySlug(slug?: string) {
       return;
     }
 
-    const findProject = () => {
-      const all = getStoredProjects();
-      const found = all.find((p) => p.slug === slug || p.id === slug);
-      if (found) {
-        setProject(found);
-        setError(null);
-      } else {
-        setError('Project not found');
-        setProject(null);
+    let isMounted = true;
+
+    async function load() {
+      try {
+        setLoading(true);
+        const item = await fetchProjectBySlug(slug!);
+        if (isMounted) {
+          if (item) {
+            setProject(item);
+            setError(null);
+          } else {
+            setProject(null);
+            setError('Project not found');
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          const found = SEED_PROJECTS.find((p) => p.slug === slug || p.id === slug);
+          if (found) {
+            setProject(found);
+            setError(null);
+          } else {
+            setError(err instanceof Error ? err.message : 'Failed to load project details');
+            setProject(null);
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-    };
+    }
 
-    findProject();
+    load();
 
-    const handleUpdate = () => {
-      findProject();
-    };
-
-    window.addEventListener('portfolio:projects-updated', handleUpdate);
     return () => {
-      window.removeEventListener('portfolio:projects-updated', handleUpdate);
+      isMounted = false;
     };
   }, [slug]);
 
