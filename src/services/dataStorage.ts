@@ -118,6 +118,7 @@ export function addProjectToStore(project: Project): Project[] {
   const newProject = {
     ...project,
     id: project.id || `proj-${Date.now()}`,
+    imageVersion: project.image ? project.imageVersion || Date.now().toString(36) : undefined,
     slug:
       project.slug ||
       project.title
@@ -134,7 +135,15 @@ export function updateProjectInStore(id: string, updatedFields: Partial<Project>
   const current = getStoredProjects();
   const index = current.findIndex((p) => p.id === id || p.slug === id);
   if (index !== -1) {
-    current[index] = { ...current[index], ...updatedFields };
+    const currentProject = current[index];
+    const imageChanged = typeof updatedFields.image === 'string' && updatedFields.image !== currentProject.image;
+    current[index] = {
+      ...currentProject,
+      ...updatedFields,
+      imageVersion: imageChanged
+        ? Date.now().toString(36)
+        : updatedFields.imageVersion || currentProject.imageVersion,
+    };
     saveStoredProjects([...current]);
   }
   return current;

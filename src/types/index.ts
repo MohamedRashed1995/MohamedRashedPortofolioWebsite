@@ -22,6 +22,7 @@ export interface Project {
   period: string;
   featured: boolean;
   image?: string;
+  imageVersion?: string;
   repoUrl?: string;
   liveUrl?: string;
   thumbnailColor: string;

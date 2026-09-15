@@ -122,6 +122,8 @@ export default function ProjectDetail() {
                 titleAr={project.titleAr}
                 slug={project.slug}
                 tags={project.tags}
+                version={project.imageVersion}
+                priority
                 className="w-full max-h-[460px]"
                 imgClassName="w-full max-h-[460px] object-cover object-top"
                 aspectRatio="wide"

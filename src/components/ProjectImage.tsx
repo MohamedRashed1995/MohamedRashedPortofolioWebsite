@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useTheme } from '@/context/ThemeContext';
+import { createImageSources } from '@/utils/imageUrls';
 
 interface ProjectImageProps {
   src?: string;
@@ -25,6 +26,10 @@ interface ProjectImageProps {
   tags?: string[];
   className?: string;
   imgClassName?: string;
+  webpSrc?: string;
+  avifSrc?: string;
+  version?: string | number;
+  priority?: boolean;
   aspectRatio?: 'video' | 'wide' | 'square' | 'auto';
   showCategoryBadge?: boolean;
   showSnippetPreview?: boolean;
@@ -127,6 +132,10 @@ export const ProjectImage: React.FC<ProjectImageProps> = ({
   tags = [],
   className = '',
   imgClassName = '',
+  webpSrc,
+  avifSrc,
+  version,
+  priority = false,
   aspectRatio = 'video',
   showCategoryBadge = true,
   showSnippetPreview = false,
@@ -146,6 +155,7 @@ export const ProjectImage: React.FC<ProjectImageProps> = ({
   const IconComponent = config.icon;
   const displayTitle = isRTL && titleAr ? titleAr : title;
   const displayLabel = isRTL && config.labelAr ? config.labelAr : config.label;
+  const imageSources = src ? createImageSources(src, version, { webp: webpSrc, avif: avifSrc }) : undefined;
 
   const aspectClass =
     aspectRatio === 'video'
@@ -163,19 +173,24 @@ export const ProjectImage: React.FC<ProjectImageProps> = ({
       {/* If valid src and not in error, try rendering the img */}
       {src && !hasError ? (
         <>
-          <img
-            src={src}
-            alt={alt || displayTitle}
-            loading="lazy"
-            decoding="async"
-            onLoad={() => setIsLoaded(true)}
-            onError={() => {
-              setHasError(true);
-            }}
-            className={`w-full h-full object-cover transition-all duration-500 ${
-              isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
-            } ${imgClassName}`}
-          />
+          <picture>
+            {imageSources?.avif && <source srcSet={imageSources.avif} type="image/avif" />}
+            {imageSources?.webp && <source srcSet={imageSources.webp} type="image/webp" />}
+            <img
+              src={imageSources?.original || src}
+              alt={alt || displayTitle}
+              loading={priority ? 'eager' : 'lazy'}
+              fetchPriority={priority ? 'high' : 'auto'}
+              decoding="async"
+              onLoad={() => setIsLoaded(true)}
+              onError={() => {
+                setHasError(true);
+              }}
+              className={`w-full h-full object-cover transition-all duration-500 ${
+                isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+              } ${imgClassName}`}
+            />
+          </picture>
 
           {/* Dynamic Theme Skeleton loader while loading */}
           {!isLoaded && (

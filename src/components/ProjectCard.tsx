@@ -43,6 +43,7 @@ export default function ProjectCard({ project, index = 0 }: ProjectCardProps) {
             titleAr={project.titleAr}
             slug={project.slug}
             tags={project.tags}
+            version={project.imageVersion}
             className="w-full h-full"
             imgClassName="transition-transform duration-300 ease-out group-hover:scale-105"
             aspectRatio="auto"

@@ -8,10 +8,12 @@ import { useProfileImage } from '@/context/ProfileImageContext';
 import { useSiteContent } from '@/hooks/useSiteContent';
 import { CvPreviewModal } from '@/components/CvPreviewModal';
 import { downloadCvPdf } from '@/utils/downloadCv';
+import { createImageSources } from '@/utils/imageUrls';
 
 export default function About() {
   const { t, isRTL } = useLanguage();
-  const { profileImage } = useProfileImage();
+  const { profileImage, profileImageVersion } = useProfileImage();
+  const profileImageSources = createImageSources(profileImage, profileImageVersion);
   const { content: siteContent } = useSiteContent();
   const [cvModalOpen, setCvModalOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -83,13 +85,17 @@ export default function About() {
                 <div className="relative w-36 h-36 mx-auto mb-4 group">
                   <div className="absolute -inset-1.5 bg-gradient-to-r from-theme-accent via-theme-accent/50 to-theme-accent-sec rounded-full blur-md opacity-45 group-hover:opacity-75 transition duration-300" />
                   <div className="relative w-36 h-36 rounded-full overflow-hidden ring-4 ring-theme-accent/25 border-2 border-theme-accent shadow-lg bg-slate-950">
-                    <img
-                      src={profileImage}
-                      alt="Mohamed Rashed Abdelazim"
-                      className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                    />
+                    <picture>
+                      {profileImageSources.avif && <source srcSet={profileImageSources.avif} type="image/avif" />}
+                      {profileImageSources.webp && <source srcSet={profileImageSources.webp} type="image/webp" />}
+                      <img
+                        src={profileImageSources.original}
+                        alt="Mohamed Rashed Abdelazim"
+                        className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                      />
+                    </picture>
                   </div>
                 </div>
                 <h2 className="text-xl font-bold text-theme-text">

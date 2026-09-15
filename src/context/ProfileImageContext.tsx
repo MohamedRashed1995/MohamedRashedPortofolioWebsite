@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useState } from 'react';
 
 const DEFAULT_AVATAR = '/profile.jpg';
+const PROFILE_VERSION_KEY = 'portfolio_custom_profile_avatar_version';
 
 interface ProfileImageContextType {
   profileImage: string;
+  profileImageVersion?: string;
   hasCustomImage: boolean;
   setCustomImage: (base64OrUrl: string) => Promise<void>;
   resetToDefault: () => void;
@@ -34,10 +36,21 @@ export const ProfileImageProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   });
 
+  const [profileImageVersion, setProfileImageVersion] = useState<string | undefined>(() => {
+    try {
+      return localStorage.getItem(PROFILE_VERSION_KEY) || undefined;
+    } catch {
+      return undefined;
+    }
+  });
+
   const setCustomImage = async (base64OrUrl: string) => {
     try {
+      const version = Date.now().toString(36);
       localStorage.setItem(STORAGE_KEY, base64OrUrl);
+      localStorage.setItem(PROFILE_VERSION_KEY, version);
       setProfileImage(base64OrUrl);
+      setProfileImageVersion(version);
       setHasCustomImage(true);
     } catch (err) {
       console.error('Failed to save profile image to storage:', err);
@@ -48,10 +61,12 @@ export const ProfileImageProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const resetToDefault = () => {
     try {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(PROFILE_VERSION_KEY);
     } catch {
       // ignore
     }
     setProfileImage(DEFAULT_AVATAR);
+    setProfileImageVersion(undefined);
     setHasCustomImage(false);
   };
 
@@ -59,6 +74,7 @@ export const ProfileImageProvider: React.FC<{ children: React.ReactNode }> = ({ 
     <ProfileImageContext.Provider
       value={{
         profileImage,
+        profileImageVersion,
         hasCustomImage,
         setCustomImage,
         resetToDefault,

@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { motion, useMotionValue, useTransform, useSpring } from 'framer-motion';
 import { useProfileImage } from '@/context/ProfileImageContext';
 import { useLanguage } from '@/context/LanguageContext';
+import { createImageSources } from '@/utils/imageUrls';
 
 export const HeroAvatar: React.FC = () => {
-  const { profileImage } = useProfileImage();
+  const { profileImage, profileImageVersion } = useProfileImage();
   const { isRTL } = useLanguage();
+  const imageSources = createImageSources(profileImage, profileImageVersion);
   const [isHovered, setIsHovered] = useState(false);
 
   // Snappy responsive mouse physics for 3D depth
@@ -132,21 +134,27 @@ export const HeroAvatar: React.FC = () => {
             className="w-64 h-64 sm:w-72 sm:h-72 md:w-80 md:h-80 lg:w-[22rem] lg:h-[22rem] xl:w-[24.5rem] xl:h-[24.5rem] overflow-hidden bg-slate-950 relative border-2 border-theme-accent/30 shadow-inner"
           >
             {/* High Definition Portrait */}
-            <motion.img
-              src={profileImage}
-              alt="Mohamed Rashed Abdelazim"
-              className="w-full h-full object-cover object-top pointer-events-none"
-              animate={{
-                scale: isHovered ? 1.06 : 1.01,
-              }}
-              transition={{
-                duration: 0.3,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              style={{ willChange: 'transform' }}
-              loading="eager"
-              referrerPolicy="no-referrer"
-            />
+            <picture>
+              {imageSources.avif && <source srcSet={imageSources.avif} type="image/avif" />}
+              {imageSources.webp && <source srcSet={imageSources.webp} type="image/webp" />}
+              <motion.img
+                src={imageSources.original}
+                alt="Mohamed Rashed Abdelazim"
+                className="w-full h-full object-cover object-top pointer-events-none"
+                animate={{
+                  scale: isHovered ? 1.06 : 1.01,
+                }}
+                transition={{
+                  duration: 0.3,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                style={{ willChange: 'transform' }}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                referrerPolicy="no-referrer"
+              />
+            </picture>
 
             {/* Subtle Gradient Vignette Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/10 pointer-events-none" />

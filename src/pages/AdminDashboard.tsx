@@ -1166,6 +1166,7 @@ export default function AdminDashboard() {
                             titleAr={proj.titleAr}
                             slug={proj.slug}
                             tags={proj.tags}
+                            version={proj.imageVersion}
                             className="w-full h-full"
                             imgClassName="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                             aspectRatio="auto"
@@ -2416,6 +2417,7 @@ CREATE TABLE projects (
                         alt="Project preview"
                         title={projectForm.title || 'Project Preview'}
                         tags={projectForm.tags || []}
+                        version={projectForm.imageVersion}
                         className="w-full h-full"
                         imgClassName="w-full h-full object-cover"
                         aspectRatio="auto"
