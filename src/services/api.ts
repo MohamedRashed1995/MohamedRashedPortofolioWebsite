@@ -509,13 +509,53 @@ export function getProfileImageUrlWithBuster(url: string, version?: number | str
 }
 
 export async function uploadProfileImageToCloudinary(file: File): Promise<CloudinaryProfileImage> {
+  // 1) Ask our serverless function (/api/cloudinary-sign) to sign the upload.
+  // Signing happens server-side because Cloudinary only accepts `invalidate=true`
+  // on authenticated requests — that flag is what purges the CDN cache on replace.
+  const signResponse = await fetch('/api/cloudinary-sign', { method: 'POST' });
+
+  if (!signResponse.ok) {
+    let message = `Cloudinary signing failed with status ${signResponse.status}`;
+    try {
+      const errorBody = (await signResponse.json()) as { error?: string };
+      if (errorBody?.error) {
+        message = errorBody.error;
+      }
+    } catch {
+      // Response was not JSON — keep the generic message.
+    }
+    throw new ApiError(message, signResponse.status);
+  }
+
+  const signed = (await signResponse.json()) as {
+    signature?: string;
+    timestamp?: number;
+    apiKey?: string;
+    cloudName?: string;
+    publicId?: string;
+    invalidate?: string;
+  };
+
+  if (!signed.signature || !signed.timestamp || !signed.apiKey) {
+    throw new ApiError('Cloudinary signing response was missing required fields.', 502);
+  }
+
+  const cloudName = signed.cloudName || CLOUDINARY_CLOUD_NAME;
+  const publicId = signed.publicId || CLOUDINARY_PROFILE_PUBLIC_ID;
+  const invalidate = signed.invalidate ?? 'true';
+
+  // 2) Signed upload. Every parameter sent here (except file) is part of the
+  // signature, so no unsigned `upload_preset` is included.
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  formData.append('api_key', signed.apiKey);
+  formData.append('timestamp', String(signed.timestamp));
   // Fixed public_id: the new upload replaces the previous avatar in place.
-  formData.append('public_id', CLOUDINARY_PROFILE_PUBLIC_ID);
+  formData.append('public_id', publicId);
+  formData.append('invalidate', invalidate);
+  formData.append('signature', signed.signature);
 
-  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
     method: 'POST',
     body: formData,
   });
