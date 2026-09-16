@@ -4,8 +4,10 @@ import { UploadCloud, RotateCcw, Check, AlertCircle, Sparkles, Eye } from 'lucid
 import { useProfileImage } from '@/context/ProfileImageContext';
 import { useLanguage } from '@/context/LanguageContext';
 
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
 export const AdminImageManager: React.FC = () => {
-  const { profileImage, hasCustomImage, setCustomImage, resetToDefault } = useProfileImage();
+  const { profileImage, hasCustomImage, setCustomImage, resetToDefault, isLoading } = useProfileImage();
   const { isRTL } = useLanguage();
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -61,9 +63,27 @@ export const AdminImageManager: React.FC = () => {
     });
   };
 
+  // Turn the optimised canvas output back into a real File so Cloudinary always
+  // receives a multipart upload instead of a base64 string.
+  const dataUrlToFile = (dataUrl: string, fileName: string): File => {
+    const [, base64 = ''] = dataUrl.split(',');
+    const mime = /:(.*?);/.exec(dataUrl)?.[1] || 'image/jpeg';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new File([bytes], fileName, { type: mime });
+  };
+
   const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setErrorMessage(isRTL ? 'يرجى اختيار ملف صورة صالح (JPG, PNG, WEBP)' : 'Please select a valid image file (JPG, PNG, WEBP)');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setErrorMessage(isRTL ? 'حجم الصورة كبير جداً (الحد الأقصى 10 ميجابايت)' : 'Image is too large (maximum 10MB)');
       return;
     }
 
@@ -109,23 +129,38 @@ export const AdminImageManager: React.FC = () => {
     if (!previewUrl) return;
     setIsProcessing(true);
     setErrorMessage(null);
+    setSuccessMessage(null);
     try {
-      await setCustomImage(previewUrl);
-      setSuccessMessage(isRTL ? 'تم تحديث صورتك الشخصية بنجاح عبر جميع صفحات الموقع!' : 'Profile image successfully updated across the entire site!');
+      const fileToUpload = dataUrlToFile(previewUrl, 'profile-avatar.jpg');
+      await setCustomImage(fileToUpload);
+      setSuccessMessage(
+        isRTL
+          ? 'تم تحديث صورتك الشخصية بنجاح وستظهر الآن على جميع أجهزتك!'
+          : 'Profile image updated successfully and is now synced across your devices!'
+      );
       setSelectedFile(null);
       setPreviewUrl(null);
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to save image');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to upload the image to Cloudinary.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleReset = () => {
-    resetToDefault();
+  const handleReset = async () => {
+    setIsProcessing(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
     setPreviewUrl(null);
     setSelectedFile(null);
-    setSuccessMessage(isRTL ? 'تمت استعادة الصورة الافتراضية بنجاح.' : 'Default original photo restored.');
+    try {
+      await resetToDefault();
+      setSuccessMessage(isRTL ? 'تمت استعادة الصورة الافتراضية بنجاح.' : 'Default original photo restored.');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to restore the default photo.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -153,7 +188,8 @@ export const AdminImageManager: React.FC = () => {
           <button
             type="button"
             onClick={handleReset}
-            className="btn-ghost text-xs text-amber-400 hover:text-amber-300 border-amber-500/30"
+            disabled={isLoading || isProcessing}
+            className="btn-ghost text-xs text-amber-400 hover:text-amber-300 border-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>{isRTL ? 'استعادة الصورة الافتراضية' : 'Reset to Default Photo'}</span>
@@ -287,9 +323,11 @@ export const AdminImageManager: React.FC = () => {
                 <p className="text-xs text-theme-accent font-medium mt-0.5">Full-Stack .NET Developer</p>
                 
                 <span className="inline-block mt-3 px-2.5 py-1 rounded-full text-[11px] font-mono bg-theme-accent-light text-theme-accent border border-theme-accent/30">
-                  {previewUrl
-                    ? (isRTL ? 'معاينة الصورة الجديدة (لم يتم الحفظ بعد)' : 'Previewing New Image')
-                    : (hasCustomImage ? (isRTL ? 'صورة مخصصة نشطة' : 'Custom Image Active') : (isRTL ? 'الصورة الافتراضية' : 'Default Image Active'))
+                  {isLoading
+                    ? (isRTL ? 'جارٍ المزامنة مع Cloudinary…' : 'Syncing with Cloudinary…')
+                    : previewUrl
+                      ? (isRTL ? 'معاينة الصورة الجديدة (لم يتم الحفظ بعد)' : 'Previewing New Image')
+                      : (hasCustomImage ? (isRTL ? 'صورة مخصصة نشطة (متزامنة)' : 'Custom Image Active (Synced)') : (isRTL ? 'الصورة الافتراضية' : 'Default Image Active'))
                   }
                 </span>
               </div>

@@ -475,3 +475,69 @@ export async function updateInquiryStatus(
 
   return { success: true, id, status };
 }
+
+// ---------------------------------------------------------------------------
+// Profile image — Cloudinary (unsigned upload, no backend endpoint required)
+// ---------------------------------------------------------------------------
+// The avatar is always stored under the SAME public_id, so re-uploading from any
+// device replaces one single Cloudinary asset. Combined with `invalidate=true`
+// and a cache-busting query param, every device resolves the newest image.
+
+export const CLOUDINARY_CLOUD_NAME = 'wcdjihwt';
+export const CLOUDINARY_UPLOAD_PRESET = 'portfolio_profile';
+export const CLOUDINARY_PROFILE_PUBLIC_ID = 'portfolio_profile_avatar';
+
+export interface CloudinaryProfileImage {
+  url: string;
+  version: number;
+}
+
+/** Deterministic delivery URL of the fixed avatar public_id (format agnostic). */
+export function getCloudinaryProfileImageUrl(): string {
+  return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${CLOUDINARY_PROFILE_PUBLIC_ID}`;
+}
+
+/**
+ * Adds a cache-busting query param so browsers/CDN never serve a stale avatar.
+ * Uses the Cloudinary version when provided, otherwise the current timestamp.
+ */
+export function getProfileImageUrlWithBuster(url: string, version?: number | string): string {
+  if (!url) return url;
+  const buster = version || Date.now();
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}_t=${buster}`;
+}
+
+export async function uploadProfileImageToCloudinary(file: File): Promise<CloudinaryProfileImage> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  // Fixed public_id: the new upload replaces the previous avatar in place.
+  formData.append('public_id', CLOUDINARY_PROFILE_PUBLIC_ID);
+  formData.append('invalidate', 'true');
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    let message = `Cloudinary upload failed with status ${response.status}`;
+    try {
+      const errorBody = (await response.json()) as { error?: { message?: string } };
+      if (errorBody?.error?.message) {
+        message = errorBody.error.message;
+      }
+    } catch {
+      // Response was not JSON — keep the generic message.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  const result = (await response.json()) as { secure_url?: string; version?: number };
+  if (!result.secure_url) {
+    throw new ApiError('Cloudinary upload response did not include a secure_url.', 502);
+  }
+
+  return { url: result.secure_url, version: Number(result.version) || Date.now() };
+}
