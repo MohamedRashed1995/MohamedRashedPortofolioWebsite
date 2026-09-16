@@ -1,69 +1,56 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { fetchProfileImage, resetProfileImage, uploadProfileImage } from '@/services/api';
-
-const DEFAULT_AVATAR = '/profile.jpg';
+import React, { createContext, useContext, useState } from 'react';
+import defaultAvatar from '@/assets/profile.jpg';
 
 interface ProfileImageContextType {
   profileImage: string;
-  profileImageVersion?: string;
   hasCustomImage: boolean;
-  setCustomImage: (file: File) => Promise<void>;
-  resetToDefault: () => Promise<void>;
+  setCustomImage: (base64OrUrl: string) => Promise<void>;
+  resetToDefault: () => void;
 }
+
+const STORAGE_KEY = 'portfolio_custom_profile_avatar';
 
 const ProfileImageContext = createContext<ProfileImageContextType | undefined>(undefined);
 
 export const ProfileImageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [profileImage, setProfileImage] = useState(DEFAULT_AVATAR);
-  const [profileImageVersion, setProfileImageVersion] = useState<string | undefined>();
-  const [hasCustomImage, setHasCustomImage] = useState(false);
+  const [profileImage, setProfileImage] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && saved.startsWith('data:image')) {
+        return saved;
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return defaultAvatar;
+  });
 
-  useEffect(() => {
-    let active = true;
+  const [hasCustomImage, setHasCustomImage] = useState<boolean>(() => {
+    try {
+      return Boolean(localStorage.getItem(STORAGE_KEY));
+    } catch {
+      return false;
+    }
+  });
 
-    const loadProfileImage = () => {
-      fetchProfileImage()
-        .then((media) => {
-          if (!active || !media) return;
-          setProfileImage(media.url);
-          // Prefer the server-provided content version; fall back to updatedAt so the
-          // cache-buster changes whenever the image is replaced.
-          setProfileImageVersion(media.version || media.updatedAt);
-          setHasCustomImage(true);
-        })
-        .catch((error) => console.error('Failed to load profile image:', error));
-    };
-
-    loadProfileImage();
-
-    // Re-fetch fresh metadata when the tab/window regains focus so a stale
-    // desktop session picks up an image that was updated from another device.
-    const handleFocus = () => loadProfileImage();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') loadProfileImage();
-    };
-
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      active = false;
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  const setCustomImage = async (file: File) => {
-    const media = await uploadProfileImage(file);
-    setProfileImage(media.url);
-    setProfileImageVersion(media.version);
-    setHasCustomImage(true);
+  const setCustomImage = async (base64OrUrl: string) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, base64OrUrl);
+      setProfileImage(base64OrUrl);
+      setHasCustomImage(true);
+    } catch (err) {
+      console.error('Failed to save profile image to storage:', err);
+      throw new Error('Image too large to save in browser storage. Please choose an image under 4MB.');
+    }
   };
 
-  const resetToDefault = async () => {
-    await resetProfileImage();
-    setProfileImage(DEFAULT_AVATAR);
-    setProfileImageVersion(undefined);
+  const resetToDefault = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
+    }
+    setProfileImage(defaultAvatar);
     setHasCustomImage(false);
   };
 
@@ -71,7 +58,6 @@ export const ProfileImageProvider: React.FC<{ children: React.ReactNode }> = ({ 
     <ProfileImageContext.Provider
       value={{
         profileImage,
-        profileImageVersion,
         hasCustomImage,
         setCustomImage,
         resetToDefault,
