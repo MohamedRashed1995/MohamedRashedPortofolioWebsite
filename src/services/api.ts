@@ -514,7 +514,6 @@ export async function uploadProfileImageToCloudinary(file: File): Promise<Cloudi
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
   // Fixed public_id: the new upload replaces the previous avatar in place.
   formData.append('public_id', CLOUDINARY_PROFILE_PUBLIC_ID);
-  formData.append('invalidate', 'true');
 
   const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
     method: 'POST',
