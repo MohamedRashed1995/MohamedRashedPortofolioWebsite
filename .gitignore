@@ -24,3 +24,28 @@ dist-ssr
 Backend/**/bin/
 Backend/**/obj/
 Backend/**/appsettings.Development.json
+appsettings.Production.json
+appsettings.*.Local.json
+*.user
+publish/
+publish-lite/
+pub2/
+pub3/
+site*.zip
+# Temp capture files
+*.txt
+*.log
+!requirements.txt
+!package-lock.txt
+
+# Nested publish folders
+Backend/WebApi/publish/
+Backend/WebApi/publish-lite/
+pub2/
+pub3/
+
+# Build artifacts
+site-real.zip
+*.zip
+Backend/WebApi/publish/
+Backend/WebApi/publish-lite/

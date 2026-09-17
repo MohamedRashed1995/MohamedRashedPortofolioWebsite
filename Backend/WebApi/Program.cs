@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Portfolio.Infrastructure.Persistence;
+using Portfolio.Application.Interfaces;
+using Portfolio.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,7 +44,7 @@ builder.Services.AddRateLimiter(options => options.AddPolicy("public", context =
         Window = TimeSpan.FromMinutes(1),
         QueueLimit = 0
     })));
-
+builder.Services.AddScoped<IEmailService, EmailService>();
 var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
