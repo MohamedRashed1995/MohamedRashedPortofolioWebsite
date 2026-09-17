@@ -214,7 +214,61 @@ export async function fetchProjectBySlug(slug: string): Promise<Project | null> 
     throw err;
   }
 }
+// ============ PROJECTS CRUD ============
 
+export interface ProjectCreateInput {
+  title: string;
+  slug: string;
+  shortDescription: string;
+  description: string;
+  role: string;
+  featured: boolean;
+  displayOrder: number;
+  technologyNames: string[];
+  metrics: { metricName: string; metricValue: string; displayOrder: number }[];
+  endpoints: { httpMethod: string; route: string; description: string; authenticationRequired: boolean; isPublicDemo: boolean }[];
+  architectureLayers: { name: string; description: string; responsibilities: string; displayOrder: number }[];
+}
+
+export async function createProject(input: ProjectCreateInput): Promise<Project> {
+  const token = getAdminToken();
+  if (!token) throw new ApiError('Authentication token missing. Please log in.', 401);
+
+  const res = await apiFetch<BackendProjectDto>('/api/v1/projects', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  return mapBackendProjectToProject(res);
+}
+
+export async function updateProject(id: string, input: Omit<ProjectCreateInput, 'slug'>): Promise<Project> {
+  const token = getAdminToken();
+  if (!token) throw new ApiError('Authentication token missing. Please log in.', 401);
+
+  const res = await apiFetch<BackendProjectDto>(`/api/v1/projects/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  return mapBackendProjectToProject(res);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  const token = getAdminToken();
+  if (!token) throw new ApiError('Authentication token missing. Please log in.', 401);
+
+  await apiFetch<void>(`/api/v1/projects/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
 export function normalizeGithubMetrics(raw: unknown): GitHubMetrics {
   const fallback = githubMetrics;
   if (!raw || typeof raw !== 'object') {

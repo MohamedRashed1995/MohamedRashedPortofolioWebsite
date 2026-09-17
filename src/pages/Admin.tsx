@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+
 import {
   Lock,
   Mail,
@@ -11,12 +12,12 @@ import {
   LogOut,
   Globe,
   Image as ImageIcon,
-  AlertTriangle,
   Layers,
   Plus,
   Edit2,
   Trash2,
   ExternalLink,
+  X,
 } from 'lucide-react';
 import { useInquiries } from '@/hooks/useInquiries';
 import { useProjects } from '@/hooks/useProjects';
@@ -25,7 +26,12 @@ import {
   logoutAdmin,
   updateInquiryStatus,
   getAdminToken,
+  createProject,
+  updateProject,
+  deleteProject,
+  type ProjectCreateInput,
 } from '@/services/api';
+import type { Project } from '@/types';
 import PageTransition from '@/components/PageTransition';
 import { useLanguage } from '@/context/LanguageContext';
 import { AdminImageManager } from '@/components/AdminImageManager';
@@ -40,6 +46,26 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState<'inquiries' | 'media' | 'projects' | 'metrics'>('inquiries');
   const [statusLoading, setStatusLoading] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Project dialog state
+  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [savingProject, setSavingProject] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [tagsInput, setTagsInput] = useState('');
+  const [projectForm, setProjectForm] = useState<ProjectCreateInput>({
+    title: '',
+    slug: '',
+    shortDescription: '',
+    description: '',
+    role: 'Full-Stack Engineer',
+    featured: false,
+    displayOrder: 0,
+    technologyNames: [],
+    metrics: [],
+    endpoints: [],
+    architectureLayers: [],
+  });
 
   const handleUnauthorized = () => {
     logoutAdmin();
@@ -58,6 +84,7 @@ export default function Admin() {
     data: projects,
     loading: projectsLoading,
     error: projectsError,
+    reload: reloadProjects,
   } = useProjects();
 
   const handleLogin = async (e: FormEvent) => {
@@ -93,6 +120,82 @@ export default function Admin() {
       }
     } finally {
       setStatusLoading(null);
+    }
+  };
+
+  const openCreateDialog = () => {
+    setEditingProject(null);
+    setProjectForm({
+      title: '',
+      slug: '',
+      shortDescription: '',
+      description: '',
+      role: 'Full-Stack Engineer',
+      featured: false,
+      displayOrder: 0,
+      technologyNames: [],
+      metrics: [],
+      endpoints: [],
+      architectureLayers: [],
+    });
+    setTagsInput('');
+    setProjectError(null);
+    setProjectDialogOpen(true);
+  };
+
+  const openEditDialog = (project: Project) => {
+    setEditingProject(project);
+    setProjectForm({
+      title: project.title,
+      slug: project.slug,
+      shortDescription: project.shortDescription,
+      description: project.longDescription || project.shortDescription,
+      role: project.role || 'Full-Stack Engineer',
+      featured: project.featured,
+      displayOrder: 0,
+      technologyNames: project.tags || [],
+      metrics: [],
+      endpoints: [],
+      architectureLayers: [],
+    });
+    setTagsInput((project.tags || []).join(', '));
+    setProjectError(null);
+    setProjectDialogOpen(true);
+  };
+
+  const handleSaveProject = async () => {
+    setSavingProject(true);
+    setProjectError(null);
+    try {
+      const techNames = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+      const payload: ProjectCreateInput = { ...projectForm, technologyNames: techNames };
+      if (editingProject) {
+        const { slug: _slug, ...rest } = payload;
+        await updateProject(editingProject.id, rest);
+      } else {
+        await createProject(payload);
+      }
+      await reloadProjects();
+      setProjectDialogOpen(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save project.';
+      if (msg.toLowerCase().includes('unauthorized')) handleUnauthorized();
+      setProjectError(msg);
+    } finally {
+      setSavingProject(false);
+    }
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    const ok = window.confirm(isRTL ? 'هل أنت متأكد من حذف المشروع؟' : 'Delete this project?');
+    if (!ok) return;
+    try {
+      await deleteProject(id);
+      await reloadProjects();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete project.';
+      if (msg.toLowerCase().includes('unauthorized')) handleUnauthorized();
+      setProjectError(msg);
     }
   };
 
@@ -301,24 +404,6 @@ export default function Admin() {
           {/* Projects Tab */}
           {activeTab === 'projects' && (
             <div className="space-y-4">
-              {/* Backend Architectural Status Notice */}
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 sm:p-5 text-amber-300 text-xs sm:text-sm flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-semibold text-amber-200">
-                    {isRTL
-                      ? 'حالة معمارية الواجهة الخلفية: وضع القراءة فقط (Read-Only)'
-                      : 'Backend Architecture Status: Read-Only Project Endpoints'}
-                  </p>
-                  <p className="text-amber-300/90 leading-relaxed text-xs">
-                    {isRTL
-                      ? 'توفر الواجهة الخلفية ASP.NET Core استعلامات القراءة فقط GET /api/v1/projects و GET /api/v1/projects/{slug}. عمليات الإنشاء والتعديل والحذف (POST / PUT / DELETE) غير متوفرة حالياً في متحكمات الخادم، لذلك تم إيقاف أزرار التعديل للحفاظ على اتساق البيانات الحقيقية.'
-                      : 'The ASP.NET Core backend currently exposes public read endpoints GET /api/v1/projects and GET /api/v1/projects/{slug}. Project mutation endpoints (POST /api/v1/projects, PUT /api/v1/projects/{id}, DELETE /api/v1/projects/{id}) do not exist in the backend controllers. Mutation actions are explicitly disabled.'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Projects Header & Action Bar */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold text-theme-text">
@@ -332,12 +417,11 @@ export default function Admin() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    disabled
-                    title="Backend endpoint POST /api/v1/projects is not implemented on server"
-                    className="btn-primary text-xs opacity-50 cursor-not-allowed"
+                    onClick={openCreateDialog}
+                    className="btn-primary text-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>{isRTL ? 'إضافة مشروع جديد (غير متاح)' : 'Create Project (Backend Missing)'}</span>
+                    <span>{isRTL ? 'إضافة مشروع جديد' : 'Create Project'}</span>
                   </button>
                 </div>
               </div>
@@ -411,17 +495,17 @@ export default function Admin() {
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            disabled
-                            title="Backend endpoint PUT /api/v1/projects/{id} is not implemented"
-                            className="btn-ghost p-1.5 text-xs opacity-40 cursor-not-allowed"
+                            onClick={() => openEditDialog(project)}
+                            className="btn-ghost p-1.5 text-xs hover:text-theme-accent"
+                            title={isRTL ? 'تعديل' : 'Edit'}
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             type="button"
-                            disabled
-                            title="Backend endpoint DELETE /api/v1/projects/{id} is not implemented"
-                            className="btn-ghost p-1.5 text-xs opacity-40 cursor-not-allowed text-red-400"
+                            onClick={() => handleDeleteProject(project.id)}
+                            className="btn-ghost p-1.5 text-xs text-red-400 hover:text-red-300"
+                            title={isRTL ? 'حذف' : 'Delete'}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -447,6 +531,143 @@ export default function Admin() {
           )}
         </div>
       </div>
+
+      {/* Project Create/Edit Dialog */}
+      {projectDialogOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="card p-6 w-full max-w-2xl bg-theme-card border border-theme-border rounded-xl my-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-theme-text">
+                {editingProject
+                  ? (isRTL ? 'تعديل المشروع' : 'Edit Project')
+                  : (isRTL ? 'مشروع جديد' : 'New Project')}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setProjectDialogOpen(false)}
+                className="btn-ghost p-1"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-2">
+              <div>
+                <label className="block text-xs font-semibold text-theme-text mb-1">Title</label>
+                <input
+                  type="text"
+                  value={projectForm.title}
+                  onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })}
+                  className="input-field text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-theme-text mb-1">Slug</label>
+                <input
+                  type="text"
+                  value={projectForm.slug}
+                  onChange={(e) => setProjectForm({ ...projectForm, slug: e.target.value })}
+                  className="input-field text-sm"
+                  disabled={!!editingProject}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-theme-text mb-1">Short Description</label>
+                <input
+                  type="text"
+                  value={projectForm.shortDescription}
+                  onChange={(e) => setProjectForm({ ...projectForm, shortDescription: e.target.value })}
+                  className="input-field text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-theme-text mb-1">Description</label>
+                <textarea
+                  value={projectForm.description}
+                  onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
+                  className="input-field text-sm"
+                  rows={4}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-theme-text mb-1">Role</label>
+                  <input
+                    type="text"
+                    value={projectForm.role}
+                    onChange={(e) => setProjectForm({ ...projectForm, role: e.target.value })}
+                    className="input-field text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-theme-text mb-1">Display Order</label>
+                  <input
+                    type="number"
+                    value={projectForm.displayOrder}
+                    onChange={(e) => setProjectForm({ ...projectForm, displayOrder: Number(e.target.value) || 0 })}
+                    className="input-field text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-theme-text mb-1">
+                  Technology Names (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={tagsInput}
+                  onChange={(e) => setTagsInput(e.target.value)}
+                  placeholder=".NET 8, EF Core, SQL Server"
+                  className="input-field text-sm"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="featured-check"
+                  checked={projectForm.featured}
+                  onChange={(e) => setProjectForm({ ...projectForm, featured: e.target.checked })}
+                />
+                <label htmlFor="featured-check" className="text-xs font-semibold text-theme-text">
+                  Featured
+                </label>
+              </div>
+
+              {projectError && <p className="text-xs text-red-400 font-medium">{projectError}</p>}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t border-theme-border">
+              <button
+                type="button"
+                onClick={() => setProjectDialogOpen(false)}
+                className="btn-ghost text-xs"
+              >
+                {isRTL ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveProject}
+                disabled={savingProject || !projectForm.title || !projectForm.slug}
+                className="btn-primary text-xs"
+              >
+                {savingProject ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                <span>
+                  {savingProject
+                    ? (isRTL ? 'جاري الحفظ' : 'Saving...')
+                    : (isRTL ? 'حفظ' : 'Save')}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageTransition>
   );
 }

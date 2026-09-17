@@ -199,7 +199,7 @@ export default function ProjectDetail() {
                       {layerDesc}
                     </p>
                     <ul className="space-y-1.5 border-t border-theme-border pt-2.5">
-                      {layerResp.map((r) => (
+                      {(layerResp as string[]).map((r: string) => (
                         <li
                           key={r}
                           className="text-xs text-theme-text-sec flex items-start gap-1.5 leading-tight"
