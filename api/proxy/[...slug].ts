@@ -49,7 +49,7 @@ function setCorsHeaders(
 
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization',
+    'Content-Type, Authorization, Accept',
   );
 
   res.setHeader('Access-Control-Max-Age', '86400');
@@ -82,6 +82,9 @@ export default async function handler(
     } else if (req.query?.slug) {
       const slugParts = Array.isArray(req.query.slug) ? req.query.slug : [req.query.slug];
       subPath = slugParts.join('/');
+    } else if (parsedUrl.searchParams.has('slug')) {
+      const slugParts = parsedUrl.searchParams.getAll('slug');
+      subPath = slugParts.join('/');
     }
 
     let cleanSubPath = subPath.replace(/^\/+/, '');
@@ -98,35 +101,34 @@ export default async function handler(
 
     // Preserve query string (excluding Vercel's injected `slug` parameter)
     let queryString = '';
-    if (req.query && Object.keys(req.query).length > 0) {
-      const searchParams = new URLSearchParams();
+    const searchParams = new URLSearchParams(parsedUrl.search);
+    searchParams.delete('slug');
+
+    if (req.query) {
       for (const [key, value] of Object.entries(req.query)) {
         if (key === 'slug' || value === undefined) continue;
-        if (Array.isArray(value)) {
-          value.forEach((v) => searchParams.append(key, v));
-        } else {
-          searchParams.append(key, value);
+        if (!searchParams.has(key)) {
+          if (Array.isArray(value)) {
+            value.forEach((v) => searchParams.append(key, v));
+          } else {
+            searchParams.append(key, value);
+          }
         }
       }
-      const qs = searchParams.toString();
-      if (qs) {
-        queryString = `?${qs}`;
-      }
-    } else if (parsedUrl.search) {
-      const searchParams = new URLSearchParams(parsedUrl.search);
-      searchParams.delete('slug');
-      const qs = searchParams.toString();
-      if (qs) {
-        queryString = `?${qs}`;
-      }
+    }
+
+    const qs = searchParams.toString();
+    if (qs) {
+      queryString = `?${qs}`;
     }
 
     const upstreamPath = `/api/${cleanSubPath}${queryString}`;
     const upstreamUrl = `${PROD_BACKEND_URL}${upstreamPath}`;
 
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-    };
+    const headers: Record<string, string> = {};
+
+    const accept = getHeader(req.headers, 'accept') || 'application/json';
+    headers.Accept = accept;
 
     const authorization = getHeader(req.headers, 'authorization');
     if (authorization) {
@@ -138,14 +140,26 @@ export default async function handler(
       headers['Content-Type'] = contentType;
     }
 
+    const userAgent = getHeader(req.headers, 'user-agent');
+    if (userAgent) {
+      headers['User-Agent'] = userAgent;
+    }
+
     let body: string | undefined;
 
     if (method !== 'GET' && method !== 'HEAD') {
       if (req.body !== undefined && req.body !== null) {
-        body =
-          typeof req.body === 'string'
-            ? req.body
-            : JSON.stringify(req.body);
+        if (typeof req.body === 'string') {
+          body = req.body.length > 0 ? req.body : undefined;
+        } else if (
+          typeof req.body === 'object' &&
+          Object.keys(req.body as object).length === 0 &&
+          method === 'DELETE'
+        ) {
+          body = undefined;
+        } else {
+          body = JSON.stringify(req.body);
+        }
       } else if (typeof (req as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function') {
         const chunks: Uint8Array[] = [];
         for await (const chunk of req as AsyncIterable<Uint8Array | string>) {
@@ -190,7 +204,11 @@ export default async function handler(
     }
 
     const text = await upstreamResponse.text();
-    res.status(statusCode).send(text);
+    if (typeof res.send === 'function') {
+      res.status(statusCode).send(text);
+    } else {
+      res.status(statusCode).end(text);
+    }
   } catch (err: unknown) {
     const message =
       err instanceof Error
