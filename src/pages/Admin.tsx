@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useCallback, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -67,11 +67,11 @@ export default function Admin() {
     architectureLayers: [],
   });
 
-  const handleUnauthorized = () => {
+  const handleUnauthorized = useCallback(() => {
     logoutAdmin();
     setAuthed(false);
     setAuthError(isRTL ? 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً.' : 'Session expired. Please log in again.');
-  };
+  }, [isRTL]);
 
   const {
     data: inquiries,
@@ -170,6 +170,7 @@ export default function Admin() {
       const techNames = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
       const payload: ProjectCreateInput = { ...projectForm, technologyNames: techNames };
       if (editingProject) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { slug: _slug, ...rest } = payload;
         await updateProject(editingProject.id, rest);
       } else {

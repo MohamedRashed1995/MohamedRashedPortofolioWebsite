@@ -69,8 +69,14 @@ export function getApiBaseUrl(): string {
 
 export function buildApiUrl(endpoint: string): string {
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  if (path.startsWith('/api/proxy/')) {
+  if (path.startsWith('/api/proxy/') || path.startsWith('/api/cloudinary-sign')) {
     return path;
+  }
+  if (path.startsWith('/api/v1/')) {
+    return `/api/proxy/v1/${path.slice('/api/v1/'.length)}`;
+  }
+  if (path === '/api/v1') {
+    return '/api/proxy/v1';
   }
   const base = getApiBaseUrl();
   return base ? `${base}${path}` : path;

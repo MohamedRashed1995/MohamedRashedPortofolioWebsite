@@ -1,12 +1,13 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
+import crypto from 'node:crypto';
 
 const backendTarget =
   process.env.VITE_BACKEND_URL ||
   (process.env.VITE_API_BASE_URL && !process.env.VITE_API_BASE_URL.includes('localhost')
     ? process.env.VITE_API_BASE_URL
-    : 'http://mohamedrashedportofolio.runasp.net');
+    : 'https://mohamedrashedportofolio.runasp.net');
 
 function backendProxyPlugin(): Plugin {
   return {
@@ -15,6 +16,50 @@ function backendProxyPlugin(): Plugin {
       server.middlewares.use((req, res, next) => {
         if (!req.url?.startsWith('/api')) {
           return next();
+        }
+
+        if (req.url.startsWith('/api/cloudinary-sign')) {
+          if (req.method !== 'POST') {
+            res.statusCode = 405;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Method not allowed' }));
+            return;
+          }
+          const cloudName = process.env.CLOUDINARY_CLOUD_NAME || 'wcdjihwt';
+          const apiKey = process.env.CLOUDINARY_API_KEY;
+          const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+          if (!cloudName || !apiKey || !apiSecret) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Cloudinary environment variables missing (CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET).' }));
+            return;
+          }
+
+          const timestamp = Math.floor(Date.now() / 1000);
+          const publicId = 'portfolio_profile_avatar';
+          const invalidate = 'true';
+
+          const paramsToSign: Record<string, string | number> = {
+            invalidate,
+            public_id: publicId,
+            timestamp,
+          };
+
+          const signatureString = Object.keys(paramsToSign)
+            .sort()
+            .map((k) => `${k}=${paramsToSign[k]}`)
+            .join('&');
+
+          const signature = crypto
+            .createHash('sha1')
+            .update(signatureString + apiSecret)
+            .digest('hex');
+
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ signature, timestamp, apiKey, cloudName, publicId, invalidate }));
+          return;
         }
 
         const cleanBase = backendTarget.replace(/\/+$/, '');
@@ -71,6 +116,14 @@ function backendProxyPlugin(): Plugin {
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), backendProxyPlugin()],
+  server: {
+    host: '0.0.0.0',
+    port: 3000,
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 3000,
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
