@@ -64,19 +64,26 @@ export function getApiBaseUrl(): string {
 }
 
 export function buildApiUrl(endpoint: string): string {
+  if (!endpoint) return '/api/proxy';
+
+  // If already an absolute URL, preserve it untouched
+  if (/^https?:\/\//i.test(endpoint)) {
+    return endpoint;
+  }
+
+  // Ensure leading slash
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
 
-  // 1. Explicit proxy or Cloudinary sign endpoints remain unchanged
-  if (path.startsWith('/api/proxy/') || path.startsWith('/api/cloudinary-sign')) {
+  // Preserve existing proxy endpoints and Cloudinary signature endpoint
+  if (
+    path.startsWith('/api/proxy/') ||
+    path === '/api/proxy' ||
+    path.startsWith('/api/cloudinary-sign')
+  ) {
     return path;
   }
 
-  // 2. Prevent accidental '/api/proxy/api/...' or double prefixes
-  if (path.startsWith('/api/proxy/api/')) {
-    return `/api/proxy/${path.slice('/api/proxy/api/'.length)}`;
-  }
-
-  // 3. Map any /api/v1/... to /api/proxy/v1/...
+  // Map /api/v1/... to /api/proxy/v1/...
   if (path.startsWith('/api/v1/')) {
     return `/api/proxy/v1/${path.slice('/api/v1/'.length)}`;
   }
@@ -84,18 +91,9 @@ export function buildApiUrl(endpoint: string): string {
     return '/api/proxy/v1';
   }
 
-  // 4. If path begins with /v1/, map to /api/proxy/v1/
-  if (path.startsWith('/v1/')) {
-    return `/api/proxy/v1/${path.slice('/v1/'.length)}`;
-  }
-
-  // 5. If path begins with /api/ (not /api/proxy/), map to /api/proxy/...
-  if (path.startsWith('/api/')) {
-    return `/api/proxy/${path.slice('/api/'.length)}`;
-  }
-
+  // Fallback with optional base URL
   const base = getApiBaseUrl();
-  return base ? `${base}${path}` : `/api/proxy${path}`;
+  return base ? `${base}${path}` : path;
 }
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

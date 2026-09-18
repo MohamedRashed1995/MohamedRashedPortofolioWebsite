@@ -91,9 +91,11 @@ export default async function handler(
     let cleanSubPath = subPath.replace(/^\/+/, '');
 
     // Prevent double /api/ if cleanSubPath starts with api/
-    if (cleanSubPath.startsWith('api/')) {
-      cleanSubPath = cleanSubPath.slice(4);
+    while (cleanSubPath.startsWith('api/')) {
+      cleanSubPath = cleanSubPath.slice(4).replace(/^\/+/, '');
     }
+
+    cleanSubPath = cleanSubPath.replace(/\/+/g, '/');
 
     if (!cleanSubPath) {
       res.status(404).json({ error: 'ProxyError', message: 'Invalid proxy path', upstreamPath: '' });

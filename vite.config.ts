@@ -62,8 +62,35 @@ function backendProxyPlugin(): Plugin {
           return;
         }
 
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 204;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+          res.setHeader('Access-Control-Max-Age', '86400');
+          res.end();
+          return;
+        }
+
         const cleanBase = backendTarget.replace(/\/+$/, '');
-        const targetUrl = `${cleanBase}${req.url}`;
+        let targetPath = req.url || '';
+
+        // Strip /api/proxy prefix to /api so that /api/proxy/v1/... maps to /api/v1/...
+        if (targetPath.startsWith('/api/proxy/api/')) {
+          targetPath = '/api/' + targetPath.slice('/api/proxy/api/'.length).replace(/^\/+/, '');
+        } else if (targetPath.startsWith('/api/proxy/')) {
+          targetPath = '/api/' + targetPath.slice('/api/proxy/'.length).replace(/^\/+/, '');
+        } else if (targetPath === '/api/proxy') {
+          targetPath = '/api';
+        }
+
+        // Collapse duplicate slashes in the path portion while preserving query string
+        const [pPart, ...qParts] = targetPath.split('?');
+        const cleanPPart = pPart.replace(/\/+/g, '/');
+        const qPart = qParts.length > 0 ? `?${qParts.join('?')}` : '';
+        targetPath = `${cleanPPart}${qPart}`;
+
+        const targetUrl = `${cleanBase}${targetPath}`;
 
         (async () => {
           try {
