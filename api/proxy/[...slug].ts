@@ -49,9 +49,10 @@ function setCorsHeaders(
 
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, Accept',
+    'Content-Type, Authorization, Accept, X-Requested-With',
   );
 
+  res.setHeader('Access-Control-Expose-Headers', 'X-Proxy-By, X-Upstream-Status');
   res.setHeader('Access-Control-Max-Age', '86400');
 }
 
@@ -95,12 +96,11 @@ export default async function handler(
     }
 
     if (!cleanSubPath) {
-      res.status(404).json({ error: 'Invalid proxy path' });
+      res.status(404).json({ error: 'ProxyError', message: 'Invalid proxy path', upstreamPath: '' });
       return;
     }
 
     // Preserve query string (excluding Vercel's injected `slug` parameter)
-    let queryString = '';
     const searchParams = new URLSearchParams(parsedUrl.search);
     searchParams.delete('slug');
 
@@ -118,9 +118,7 @@ export default async function handler(
     }
 
     const qs = searchParams.toString();
-    if (qs) {
-      queryString = `?${qs}`;
-    }
+    const queryString = qs ? `?${qs}` : '';
 
     const upstreamPath = `/api/${cleanSubPath}${queryString}`;
     const upstreamUrl = `${PROD_BACKEND_URL}${upstreamPath}`;
@@ -140,10 +138,8 @@ export default async function handler(
       headers['Content-Type'] = contentType;
     }
 
-    const userAgent = getHeader(req.headers, 'user-agent');
-    if (userAgent) {
-      headers['User-Agent'] = userAgent;
-    }
+    const userAgent = getHeader(req.headers, 'user-agent') || 'Vercel-Proxy';
+    headers['User-Agent'] = userAgent;
 
     let body: string | undefined;
 
@@ -159,6 +155,9 @@ export default async function handler(
           body = undefined;
         } else {
           body = JSON.stringify(req.body);
+          if (!headers['Content-Type']) {
+            headers['Content-Type'] = 'application/json';
+          }
         }
       } else if (typeof (req as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function') {
         const chunks: Uint8Array[] = [];
@@ -182,15 +181,29 @@ export default async function handler(
       }
     }
 
-    const upstreamResponse = await fetch(upstreamUrl, {
-      method,
-      headers,
-      body,
-    });
+    let upstreamResponse: Response;
+    try {
+      upstreamResponse = await fetch(upstreamUrl, {
+        method,
+        headers,
+        body,
+      });
+    } catch (networkErr: unknown) {
+      const msg = networkErr instanceof Error ? networkErr.message : 'Network connection failure';
+      res.status(502).json({
+        proxyError: 'UpstreamUnreachable',
+        upstreamUrl,
+        upstreamPath,
+        message: `Vercel proxy was unable to reach upstream backend: ${msg}`,
+      });
+      return;
+    }
 
     const statusCode = upstreamResponse.status;
-    const responseContentType =
-      upstreamResponse.headers.get('content-type') || '';
+    const responseContentType = upstreamResponse.headers.get('content-type') || '';
+
+    res.setHeader('X-Proxy-By', 'Vercel-Proxy');
+    res.setHeader('X-Upstream-Status', String(statusCode));
 
     if (statusCode === 204) {
       res.status(204).end();
@@ -204,6 +217,21 @@ export default async function handler(
     }
 
     const text = await upstreamResponse.text();
+
+    if (statusCode === 503) {
+      res.status(503);
+      if (typeof res.json === 'function' && (!text || text.includes('<html>'))) {
+        res.json({
+          proxyError: 'UpstreamServiceUnavailable',
+          upstreamStatus: 503,
+          upstreamPath,
+          message: 'Upstream MonsterASP/IIS backend returned 503 Service Unavailable.',
+          details: text ? text.slice(0, 500) : undefined,
+        });
+        return;
+      }
+    }
+
     if (typeof res.send === 'function') {
       res.status(statusCode).send(text);
     } else {
@@ -213,9 +241,10 @@ export default async function handler(
     const message =
       err instanceof Error
         ? err.message
-        : 'Upstream request failed';
+        : 'Internal proxy execution error';
 
     res.status(502).json({
+      proxyError: 'ProxyExecutionFailure',
       error: 'Bad Gateway',
       message,
     });

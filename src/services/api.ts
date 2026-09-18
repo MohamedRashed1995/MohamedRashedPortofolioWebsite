@@ -59,27 +59,43 @@ export function getApiBaseUrl(): string {
     }
     return configured.replace(/\/+$/, '');
   }
-  // If running in production build, default directly to production ASP.NET Core backend
-  if (import.meta.env.PROD) {
-    return PROD_BACKEND_URL;
-  }
-  // In development, return empty string so calls go through Vite proxy to http://mohamedrashedportofolio.runasp.net
+  // Browser traffic always uses relative proxy paths (/api/proxy/...)
   return '';
 }
 
 export function buildApiUrl(endpoint: string): string {
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  // 1. Explicit proxy or Cloudinary sign endpoints remain unchanged
   if (path.startsWith('/api/proxy/') || path.startsWith('/api/cloudinary-sign')) {
     return path;
   }
+
+  // 2. Prevent accidental '/api/proxy/api/...' or double prefixes
+  if (path.startsWith('/api/proxy/api/')) {
+    return `/api/proxy/${path.slice('/api/proxy/api/'.length)}`;
+  }
+
+  // 3. Map any /api/v1/... to /api/proxy/v1/...
   if (path.startsWith('/api/v1/')) {
     return `/api/proxy/v1/${path.slice('/api/v1/'.length)}`;
   }
   if (path === '/api/v1') {
     return '/api/proxy/v1';
   }
+
+  // 4. If path begins with /v1/, map to /api/proxy/v1/
+  if (path.startsWith('/v1/')) {
+    return `/api/proxy/v1/${path.slice('/v1/'.length)}`;
+  }
+
+  // 5. If path begins with /api/ (not /api/proxy/), map to /api/proxy/...
+  if (path.startsWith('/api/')) {
+    return `/api/proxy/${path.slice('/api/'.length)}`;
+  }
+
   const base = getApiBaseUrl();
-  return base ? `${base}${path}` : path;
+  return base ? `${base}${path}` : `/api/proxy${path}`;
 }
 
 export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

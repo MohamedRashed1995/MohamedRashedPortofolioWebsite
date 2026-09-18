@@ -1,4 +1,4 @@
-import { useState, useCallback, type FormEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import {
@@ -67,11 +67,16 @@ export default function Admin() {
     architectureLayers: [],
   });
 
+  const isRTLRef = useRef(isRTL);
+  useEffect(() => {
+    isRTLRef.current = isRTL;
+  }, [isRTL]);
+
   const handleUnauthorized = useCallback(() => {
     logoutAdmin();
     setAuthed(false);
-    setAuthError(isRTL ? 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً.' : 'Session expired. Please log in again.');
-  }, [isRTL]);
+    setAuthError(isRTLRef.current ? 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً.' : 'Session expired. Please log in again.');
+  }, []);
 
   const {
     data: inquiries,
