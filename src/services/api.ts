@@ -68,8 +68,11 @@ export function getApiBaseUrl(): string {
 }
 
 export function buildApiUrl(endpoint: string): string {
-  const base = getApiBaseUrl();
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  if (path.startsWith('/api/proxy/')) {
+    return path;
+  }
+  const base = getApiBaseUrl();
   return base ? `${base}${path}` : path;
 }
 
@@ -234,7 +237,7 @@ export async function createProject(input: ProjectCreateInput): Promise<Project>
   const token = getAdminToken();
   if (!token) throw new ApiError('Authentication token missing. Please log in.', 401);
 
-  const res = await apiFetch<BackendProjectDto>('/api/v1/projects', {
+  const res = await apiFetch<BackendProjectDto>('/api/proxy/v1/projects', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -249,7 +252,7 @@ export async function updateProject(id: string, input: Omit<ProjectCreateInput, 
   const token = getAdminToken();
   if (!token) throw new ApiError('Authentication token missing. Please log in.', 401);
 
-  const res = await apiFetch<BackendProjectDto>(`/api/v1/projects/${id}`, {
+  const res = await apiFetch<BackendProjectDto>(`/api/proxy/v1/projects/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -264,7 +267,7 @@ export async function deleteProject(id: string): Promise<void> {
   const token = getAdminToken();
   if (!token) throw new ApiError('Authentication token missing. Please log in.', 401);
 
-  await apiFetch<void>(`/api/v1/projects/${id}`, {
+  await apiFetch<void>(`/api/proxy/v1/projects/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   });
