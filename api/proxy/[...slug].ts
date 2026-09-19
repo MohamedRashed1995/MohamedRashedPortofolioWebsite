@@ -52,7 +52,10 @@ function setCorsHeaders(
     'Content-Type, Authorization, Accept, X-Requested-With',
   );
 
-  res.setHeader('Access-Control-Expose-Headers', 'X-Proxy-By, X-Upstream-Status');
+  res.setHeader(
+    'Access-Control-Expose-Headers',
+    'X-Proxy-By, X-Upstream-Status, X-Upstream-Method, X-Upstream-Path',
+  );
   res.setHeader('Access-Control-Max-Age', '86400');
 }
 
@@ -192,6 +195,10 @@ export default async function handler(
       });
     } catch (networkErr: unknown) {
       const msg = networkErr instanceof Error ? networkErr.message : 'Network connection failure';
+      res.setHeader('X-Proxy-By', 'Vercel-Proxy');
+      res.setHeader('X-Upstream-Status', '502');
+      res.setHeader('X-Upstream-Method', method);
+      res.setHeader('X-Upstream-Path', upstreamPath);
       res.status(502).json({
         proxyError: 'UpstreamUnreachable',
         upstreamUrl,
@@ -206,6 +213,8 @@ export default async function handler(
 
     res.setHeader('X-Proxy-By', 'Vercel-Proxy');
     res.setHeader('X-Upstream-Status', String(statusCode));
+    res.setHeader('X-Upstream-Method', method);
+    res.setHeader('X-Upstream-Path', upstreamPath);
 
     if (statusCode === 204) {
       res.status(204).end();
