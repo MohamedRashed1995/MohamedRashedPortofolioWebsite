@@ -50,11 +50,7 @@ function setCorsHeaders(
       'Access-Control-Allow-Origin',
       origin,
     );
-
-    res.setHeader(
-      'Vary',
-      'Origin',
-    );
+    res.setHeader('Vary', 'Origin');
   }
 
   res.setHeader(
@@ -64,7 +60,7 @@ function setCorsHeaders(
 
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, Accept',
+    'Content-Type, Authorization, Accept, X-Requested-With',
   );
 
   res.setHeader(
@@ -82,25 +78,29 @@ function resolveSubPath(
   req: MinimalRequest,
   parsedUrl: URL,
 ): string | null {
-  const prefix = '/api/proxy';
+  const proxyPrefix = '/api/proxy';
 
   let subPath = '';
 
   if (
-    parsedUrl.pathname.startsWith(prefix)
+    parsedUrl.pathname.startsWith(
+      proxyPrefix,
+    )
   ) {
     subPath =
       parsedUrl.pathname.slice(
-        prefix.length,
+        proxyPrefix.length,
       );
   }
 
   if (!subPath && req.query?.slug) {
-    const slug = Array.isArray(req.query.slug)
+    const slugValue = Array.isArray(
+      req.query.slug,
+    )
       ? req.query.slug
       : [req.query.slug];
 
-    subPath = `/${slug.join('/')}`;
+    subPath = `/${slugValue.join('/')}`;
   }
 
   subPath = subPath
@@ -151,7 +151,9 @@ function buildQueryString(
   const query =
     params.toString();
 
-  return query ? `?${query}` : '';
+  return query
+    ? `?${query}`
+    : '';
 }
 
 function buildRequestBody(
@@ -189,17 +191,19 @@ export default async function handler(
   const method =
     (req.method || 'GET').toUpperCase();
 
-  // Preflight is handled locally.
+  // Handle browser preflight locally.
+  // Never forward OPTIONS to MonsterASP.
   if (method === 'OPTIONS') {
     res.status(204).end();
     return;
   }
 
   try {
-    const parsedUrl = new URL(
-      req.url || '',
-      'https://vercel.local',
-    );
+    const parsedUrl =
+      new URL(
+        req.url || '',
+        'https://vercel.local',
+      );
 
     const subPath =
       resolveSubPath(
@@ -337,6 +341,7 @@ export default async function handler(
         'content-type',
       ) || '';
 
+    // Diagnostics
     res.setHeader(
       'X-Proxy-By',
       'Vercel-Proxy',
