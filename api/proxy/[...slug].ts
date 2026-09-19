@@ -50,7 +50,11 @@ function setCorsHeaders(
       'Access-Control-Allow-Origin',
       origin,
     );
-    res.setHeader('Vary', 'Origin');
+
+    res.setHeader(
+      'Vary',
+      'Origin',
+    );
   }
 
   res.setHeader(
@@ -60,7 +64,7 @@ function setCorsHeaders(
 
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, Accept, X-Requested-With',
+    'Content-Type, Authorization, Accept',
   );
 
   res.setHeader(
@@ -78,29 +82,25 @@ function resolveSubPath(
   req: MinimalRequest,
   parsedUrl: URL,
 ): string | null {
-  const proxyPrefix = '/api/proxy';
+  const prefix = '/api/proxy';
 
   let subPath = '';
 
   if (
-    parsedUrl.pathname.startsWith(
-      proxyPrefix,
-    )
+    parsedUrl.pathname.startsWith(prefix)
   ) {
     subPath =
       parsedUrl.pathname.slice(
-        proxyPrefix.length,
+        prefix.length,
       );
   }
 
   if (!subPath && req.query?.slug) {
-    const slugValue = Array.isArray(
-      req.query.slug,
-    )
+    const slug = Array.isArray(req.query.slug)
       ? req.query.slug
       : [req.query.slug];
 
-    subPath = `/${slugValue.join('/')}`;
+    subPath = `/${slug.join('/')}`;
   }
 
   subPath = subPath
@@ -151,9 +151,7 @@ function buildQueryString(
   const query =
     params.toString();
 
-  return query
-    ? `?${query}`
-    : '';
+  return query ? `?${query}` : '';
 }
 
 function buildRequestBody(
@@ -191,19 +189,27 @@ export default async function handler(
   const method =
     (req.method || 'GET').toUpperCase();
 
-  // Handle browser preflight locally.
-  // Never forward OPTIONS to MonsterASP.
+  // Handle CORS preflight locally.
+  // Return 200 so the browser receives an explicit successful preflight.
   if (method === 'OPTIONS') {
-    res.status(204).end();
+    res.setHeader(
+      'Content-Type',
+      'application/json',
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'CORS preflight accepted.',
+    });
+
     return;
   }
 
   try {
-    const parsedUrl =
-      new URL(
-        req.url || '',
-        'https://vercel.local',
-      );
+    const parsedUrl = new URL(
+      req.url || '',
+      'https://vercel.local',
+    );
 
     const subPath =
       resolveSubPath(
@@ -216,6 +222,7 @@ export default async function handler(
         proxyError: 'InvalidProxyPath',
         message: 'Invalid proxy path.',
       });
+
       return;
     }
 
@@ -231,10 +238,7 @@ export default async function handler(
     const upstreamUrl =
       `${PROD_BACKEND_URL}${upstreamPath}`;
 
-    const headers: Record<
-      string,
-      string
-    > = {
+    const headers: Record<string, string> = {
       Accept:
         getHeader(
           req.headers,
@@ -341,7 +345,6 @@ export default async function handler(
         'content-type',
       ) || '';
 
-    // Diagnostics
     res.setHeader(
       'X-Proxy-By',
       'Vercel-Proxy',
@@ -377,14 +380,19 @@ export default async function handler(
           .json()
           .catch(() => null);
 
-      res.status(statusCode).json(data);
+      res
+        .status(statusCode)
+        .json(data);
+
       return;
     }
 
     const text =
       await upstreamResponse.text();
 
-    res.status(statusCode).send(text);
+    res
+      .status(statusCode)
+      .send(text);
   } catch (error: unknown) {
     const message =
       error instanceof Error
