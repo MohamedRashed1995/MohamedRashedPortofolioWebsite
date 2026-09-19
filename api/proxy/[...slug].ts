@@ -1,6 +1,7 @@
 // api/proxy/[...slug].ts
 
-const PROD_BACKEND_URL = 'https://mohamedrashedportofolio.runasp.net';
+const PROD_BACKEND_URL =
+  'https://mohamedrashedportofolio.runasp.net';
 
 interface MinimalRequest {
   url?: string;
@@ -22,24 +23,38 @@ function getHeader(
   headers: Record<string, string | string[] | undefined>,
   name: string,
 ): string | undefined {
-  const value = headers[name] ?? headers[name.toLowerCase()];
+  const value =
+    headers[name] ??
+    headers[name.toLowerCase()];
 
   if (Array.isArray(value)) {
     return value[0];
   }
 
-  return value;
+  return typeof value === 'string'
+    ? value
+    : undefined;
 }
 
 function setCorsHeaders(
   req: MinimalRequest,
   res: MinimalResponse,
 ): void {
-  const origin = getHeader(req.headers, 'origin') || '*';
+  const origin = getHeader(
+    req.headers,
+    'origin',
+  );
 
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  if (origin !== '*') {
-    res.setHeader('Vary', 'Origin');
+  if (origin) {
+    res.setHeader(
+      'Access-Control-Allow-Origin',
+      origin,
+    );
+
+    res.setHeader(
+      'Vary',
+      'Origin',
+    );
   }
 
   res.setHeader(
@@ -49,14 +64,137 @@ function setCorsHeaders(
 
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, Accept, X-Requested-With',
+    'Content-Type, Authorization, Accept',
   );
 
   res.setHeader(
     'Access-Control-Expose-Headers',
     'X-Proxy-By, X-Upstream-Status, X-Upstream-Method, X-Upstream-Path',
   );
-  res.setHeader('Access-Control-Max-Age', '86400');
+
+  res.setHeader(
+    'Access-Control-Max-Age',
+    '86400',
+  );
+}
+
+function resolveSubPath(
+  req: MinimalRequest,
+  parsedUrl: URL,
+): string | null {
+  const proxyPrefix = '/api/proxy';
+
+  let subPath = '';
+
+  if (
+    parsedUrl.pathname.startsWith(
+      proxyPrefix,
+    )
+  ) {
+    subPath = parsedUrl.pathname.slice(
+      proxyPrefix.length,
+    );
+  }
+
+  if (!subPath && req.query?.slug) {
+    const slugValue = Array.isArray(
+      req.query.slug,
+    )
+      ? req.query.slug
+      : [req.query.slug];
+
+    subPath = `/${slugValue.join('/')}`;
+  }
+
+  subPath = subPath
+    .replace(/^\/+/, '')
+    .replace(/\/+/g, '/');
+
+  // Prevent:
+  // /api/api/v1/...
+  while (subPath.startsWith('api/')) {
+    subPath = subPath
+      .slice(4)
+      .replace(/^\/+/, '');
+  }
+
+  if (!subPath) {
+    return null;
+  }
+
+  return subPath;
+}
+
+function buildQueryString(
+  req: MinimalRequest,
+  parsedUrl: URL,
+): string {
+  const params = new URLSearchParams(
+    parsedUrl.search,
+  );
+
+  // Never forward Vercel's internal catch-all slug.
+  params.delete('slug');
+
+  if (req.query) {
+    for (const [key, value] of Object.entries(
+      req.query,
+    )) {
+      if (
+        key === 'slug' ||
+        value === undefined ||
+        params.has(key)
+      ) {
+        continue;
+      }
+
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          params.append(key, item);
+        }
+      } else {
+        params.append(key, value);
+      }
+    }
+  }
+
+  const query =
+    params.toString();
+
+  return query
+    ? `?${query}`
+    : '';
+}
+
+function buildRequestBody(
+  req: MinimalRequest,
+  method: string,
+): string | undefined {
+  if (
+    method === 'GET' ||
+    method === 'HEAD' ||
+    method === 'OPTIONS'
+  ) {
+    return undefined;
+  }
+
+  if (
+    req.body === undefined ||
+    req.body === null
+  ) {
+    return undefined;
+  }
+
+  // If the runtime already parsed the body as a string,
+  // forward it exactly as received.
+  if (typeof req.body === 'string') {
+    return req.body.length > 0
+      ? req.body
+      : undefined;
+  }
+
+  // Otherwise serialize the parsed object exactly once.
+  return JSON.stringify(req.body);
 }
 
 export default async function handler(
@@ -65,198 +203,211 @@ export default async function handler(
 ) {
   setCorsHeaders(req, res);
 
-  const method = (req.method || 'GET').toUpperCase();
+  const method = (
+    req.method || 'GET'
+  ).toUpperCase();
 
-  // Handle browser preflight locally.
-  // Never forward OPTIONS to MonsterASP.
+  // Preflight is handled entirely by Vercel.
   if (method === 'OPTIONS') {
     res.status(204).end();
     return;
   }
 
   try {
-    const rawUrl = req.url || '';
-    const parsedUrl = new URL(rawUrl, 'https://vercel.local');
+    const parsedUrl =
+      new URL(
+        req.url || '',
+        'https://vercel.local',
+      );
 
-    const proxyPrefix = '/api/proxy';
-    let subPath = '';
+    const subPath =
+      resolveSubPath(
+        req,
+        parsedUrl,
+      );
 
-    if (parsedUrl.pathname.startsWith(proxyPrefix) && !parsedUrl.pathname.includes('[...slug]')) {
-      subPath = parsedUrl.pathname.slice(proxyPrefix.length);
-    } else if (req.query?.slug) {
-      const slugParts = Array.isArray(req.query.slug) ? req.query.slug : [req.query.slug];
-      subPath = slugParts.join('/');
-    } else if (parsedUrl.searchParams.has('slug')) {
-      const slugParts = parsedUrl.searchParams.getAll('slug');
-      subPath = slugParts.join('/');
-    }
-
-    let cleanSubPath = subPath.replace(/^\/+/, '');
-
-    // Prevent double /api/ if cleanSubPath starts with api/
-    while (cleanSubPath.startsWith('api/')) {
-      cleanSubPath = cleanSubPath.slice(4).replace(/^\/+/, '');
-    }
-
-    cleanSubPath = cleanSubPath.replace(/\/+/g, '/');
-
-    if (!cleanSubPath) {
-      res.status(404).json({ error: 'ProxyError', message: 'Invalid proxy path', upstreamPath: '' });
+    if (!subPath) {
+      res.status(404).json({
+        proxyError: 'InvalidProxyPath',
+        message:
+          'Unable to resolve proxy path.',
+      });
       return;
     }
 
-    // Preserve query string (excluding Vercel's injected `slug` parameter)
-    const searchParams = new URLSearchParams(parsedUrl.search);
-    searchParams.delete('slug');
+    const queryString =
+      buildQueryString(
+        req,
+        parsedUrl,
+      );
 
-    if (req.query) {
-      for (const [key, value] of Object.entries(req.query)) {
-        if (key === 'slug' || value === undefined) continue;
-        if (!searchParams.has(key)) {
-          if (Array.isArray(value)) {
-            value.forEach((v) => searchParams.append(key, v));
-          } else {
-            searchParams.append(key, value);
-          }
-        }
-      }
-    }
+    const upstreamPath =
+      `/api/${subPath}${queryString}`;
 
-    const qs = searchParams.toString();
-    const queryString = qs ? `?${qs}` : '';
+    const upstreamUrl =
+      `${PROD_BACKEND_URL}${upstreamPath}`;
 
-    const upstreamPath = `/api/${cleanSubPath}${queryString}`;
-    const upstreamUrl = `${PROD_BACKEND_URL}${upstreamPath}`;
+    const headers: Record<
+      string,
+      string
+    > = {
+      Accept:
+        getHeader(
+          req.headers,
+          'accept',
+        ) || 'application/json',
+    };
 
-    const headers: Record<string, string> = {};
+    const authorization =
+      getHeader(
+        req.headers,
+        'authorization',
+      );
 
-    const accept = getHeader(req.headers, 'accept') || 'application/json';
-    headers.Accept = accept;
-
-    const authorization = getHeader(req.headers, 'authorization');
     if (authorization) {
-      headers.Authorization = authorization;
+      headers.Authorization =
+        authorization;
     }
 
-    const contentType = getHeader(req.headers, 'content-type');
+    const contentType =
+      getHeader(
+        req.headers,
+        'content-type',
+      );
+
     if (contentType) {
-      headers['Content-Type'] = contentType;
+      headers['Content-Type'] =
+        contentType;
     }
 
-    const userAgent = getHeader(req.headers, 'user-agent') || 'Vercel-Proxy';
-    headers['User-Agent'] = userAgent;
+    const userAgent =
+      getHeader(
+        req.headers,
+        'user-agent',
+      );
 
-    let body: string | undefined;
+    if (userAgent) {
+      headers['User-Agent'] =
+        userAgent;
+    }
 
-    if (method !== 'GET' && method !== 'HEAD') {
-      if (req.body !== undefined && req.body !== null) {
-        if (typeof req.body === 'string') {
-          body = req.body.length > 0 ? req.body : undefined;
-        } else if (
-          typeof req.body === 'object' &&
-          Object.keys(req.body as object).length === 0 &&
-          method === 'DELETE'
-        ) {
-          body = undefined;
-        } else {
-          body = JSON.stringify(req.body);
-          if (!headers['Content-Type']) {
-            headers['Content-Type'] = 'application/json';
-          }
-        }
-      } else if (typeof (req as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function') {
-        const chunks: Uint8Array[] = [];
-        for await (const chunk of req as AsyncIterable<Uint8Array | string>) {
-          if (typeof chunk === 'string') {
-            chunks.push(new TextEncoder().encode(chunk));
-          } else {
-            chunks.push(chunk);
-          }
-        }
-        if (chunks.length > 0) {
-          const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-          const combined = new Uint8Array(totalLength);
-          let offset = 0;
-          for (const chunk of chunks) {
-            combined.set(chunk, offset);
-            offset += chunk.length;
-          }
-          body = new TextDecoder().decode(combined);
-        }
-      }
+    const body =
+      buildRequestBody(
+        req,
+        method,
+      );
+
+    if (
+      body !== undefined &&
+      !headers['Content-Type']
+    ) {
+      headers['Content-Type'] =
+        'application/json';
     }
 
     let upstreamResponse: Response;
+
     try {
-      upstreamResponse = await fetch(upstreamUrl, {
+      upstreamResponse =
+        await fetch(
+          upstreamUrl,
+          {
+            method,
+            headers,
+            body,
+          },
+        );
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unable to reach upstream backend.';
+
+      res.setHeader(
+        'X-Proxy-By',
+        'Vercel-Proxy',
+      );
+
+      res.setHeader(
+        'X-Upstream-Method',
         method,
-        headers,
-        body,
-      });
-    } catch (networkErr: unknown) {
-      const msg = networkErr instanceof Error ? networkErr.message : 'Network connection failure';
-      res.setHeader('X-Proxy-By', 'Vercel-Proxy');
-      res.setHeader('X-Upstream-Status', '502');
-      res.setHeader('X-Upstream-Method', method);
-      res.setHeader('X-Upstream-Path', upstreamPath);
-      res.status(502).json({
-        proxyError: 'UpstreamUnreachable',
-        upstreamUrl,
+      );
+
+      res.setHeader(
+        'X-Upstream-Path',
         upstreamPath,
-        message: `Vercel proxy was unable to reach upstream backend: ${msg}`,
+      );
+
+      res.status(502).json({
+        proxyError:
+          'UpstreamUnreachable',
+        message,
       });
+
       return;
     }
 
-    const statusCode = upstreamResponse.status;
-    const responseContentType = upstreamResponse.headers.get('content-type') || '';
+    const statusCode =
+      upstreamResponse.status;
 
-    res.setHeader('X-Proxy-By', 'Vercel-Proxy');
-    res.setHeader('X-Upstream-Status', String(statusCode));
-    res.setHeader('X-Upstream-Method', method);
-    res.setHeader('X-Upstream-Path', upstreamPath);
+    const responseContentType =
+      upstreamResponse.headers.get(
+        'content-type',
+      ) || '';
+
+    // Diagnostic headers.
+    res.setHeader(
+      'X-Proxy-By',
+      'Vercel-Proxy',
+    );
+
+    res.setHeader(
+      'X-Upstream-Status',
+      String(statusCode),
+    );
+
+    res.setHeader(
+      'X-Upstream-Method',
+      method,
+    );
+
+    res.setHeader(
+      'X-Upstream-Path',
+      upstreamPath,
+    );
 
     if (statusCode === 204) {
       res.status(204).end();
       return;
     }
 
-    if (responseContentType.includes('application/json')) {
-      const data = await upstreamResponse.json().catch(() => null);
+    if (
+      responseContentType.includes(
+        'application/json',
+      )
+    ) {
+      const data =
+        await upstreamResponse
+          .json()
+          .catch(() => null);
+
       res.status(statusCode).json(data);
       return;
     }
 
-    const text = await upstreamResponse.text();
+    const text =
+      await upstreamResponse.text();
 
-    if (statusCode === 503) {
-      res.status(503);
-      if (typeof res.json === 'function' && (!text || text.includes('<html>'))) {
-        res.json({
-          proxyError: 'UpstreamServiceUnavailable',
-          upstreamStatus: 503,
-          upstreamPath,
-          message: 'Upstream MonsterASP/IIS backend returned 503 Service Unavailable.',
-          details: text ? text.slice(0, 500) : undefined,
-        });
-        return;
-      }
-    }
-
-    if (typeof res.send === 'function') {
-      res.status(statusCode).send(text);
-    } else {
-      res.status(statusCode).end(text);
-    }
-  } catch (err: unknown) {
+    res.status(statusCode).send(text);
+  } catch (error: unknown) {
     const message =
-      err instanceof Error
-        ? err.message
-        : 'Internal proxy execution error';
+      error instanceof Error
+        ? error.message
+        : 'Proxy execution failed.';
 
     res.status(502).json({
-      proxyError: 'ProxyExecutionFailure',
-      error: 'Bad Gateway',
+      proxyError:
+        'ProxyExecutionFailure',
       message,
     });
   }
