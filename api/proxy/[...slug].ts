@@ -82,47 +82,38 @@ function resolveSubPath(
   req: MinimalRequest,
   parsedUrl: URL,
 ): string | null {
-  const proxyPrefix = '/api/proxy';
+  const prefix = '/api/proxy';
 
   let subPath = '';
 
   if (
-    parsedUrl.pathname.startsWith(
-      proxyPrefix,
-    )
+    parsedUrl.pathname.startsWith(prefix)
   ) {
-    subPath = parsedUrl.pathname.slice(
-      proxyPrefix.length,
-    );
+    subPath =
+      parsedUrl.pathname.slice(
+        prefix.length,
+      );
   }
 
   if (!subPath && req.query?.slug) {
-    const slugValue = Array.isArray(
-      req.query.slug,
-    )
+    const slug = Array.isArray(req.query.slug)
       ? req.query.slug
       : [req.query.slug];
 
-    subPath = `/${slugValue.join('/')}`;
+    subPath = `/${slug.join('/')}`;
   }
 
   subPath = subPath
     .replace(/^\/+/, '')
     .replace(/\/+/g, '/');
 
-  // Prevent:
-  // /api/api/v1/...
   while (subPath.startsWith('api/')) {
     subPath = subPath
       .slice(4)
       .replace(/^\/+/, '');
   }
 
-  if (!subPath) {
-    return null;
-  }
-
-  return subPath;
+  return subPath || null;
 }
 
 function buildQueryString(
@@ -133,7 +124,6 @@ function buildQueryString(
     parsedUrl.search,
   );
 
-  // Never forward Vercel's internal catch-all slug.
   params.delete('slug');
 
   if (req.query) {
@@ -161,9 +151,7 @@ function buildQueryString(
   const query =
     params.toString();
 
-  return query
-    ? `?${query}`
-    : '';
+  return query ? `?${query}` : '';
 }
 
 function buildRequestBody(
@@ -185,15 +173,10 @@ function buildRequestBody(
     return undefined;
   }
 
-  // If the runtime already parsed the body as a string,
-  // forward it exactly as received.
   if (typeof req.body === 'string') {
-    return req.body.length > 0
-      ? req.body
-      : undefined;
+    return req.body || undefined;
   }
 
-  // Otherwise serialize the parsed object exactly once.
   return JSON.stringify(req.body);
 }
 
@@ -203,22 +186,20 @@ export default async function handler(
 ) {
   setCorsHeaders(req, res);
 
-  const method = (
-    req.method || 'GET'
-  ).toUpperCase();
+  const method =
+    (req.method || 'GET').toUpperCase();
 
-  // Preflight is handled entirely by Vercel.
+  // Preflight is handled locally.
   if (method === 'OPTIONS') {
     res.status(204).end();
     return;
   }
 
   try {
-    const parsedUrl =
-      new URL(
-        req.url || '',
-        'https://vercel.local',
-      );
+    const parsedUrl = new URL(
+      req.url || '',
+      'https://vercel.local',
+    );
 
     const subPath =
       resolveSubPath(
@@ -229,8 +210,7 @@ export default async function handler(
     if (!subPath) {
       res.status(404).json({
         proxyError: 'InvalidProxyPath',
-        message:
-          'Unable to resolve proxy path.',
+        message: 'Invalid proxy path.',
       });
       return;
     }
@@ -341,6 +321,8 @@ export default async function handler(
       res.status(502).json({
         proxyError:
           'UpstreamUnreachable',
+        method,
+        upstreamPath,
         message,
       });
 
@@ -355,7 +337,6 @@ export default async function handler(
         'content-type',
       ) || '';
 
-    // Diagnostic headers.
     res.setHeader(
       'X-Proxy-By',
       'Vercel-Proxy',
