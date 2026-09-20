@@ -1,0 +1,11 @@
+Backend/
+Backend.Tests/
+docs/
+pub2/
+pub3/
+pub4/
+pub5/
+publish/
+publish-lite/
+site-real.zip
+*.log

@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGradAdros" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090d16" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#022c38" />
+    </linearGradient>
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <linearGradient id="accentGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#0891b2" stop-opacity="0.1" />
+    </linearGradient>
+    <filter id="glowEffect" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="450" fill="url(#bgGradAdros)" />
+
+  <!-- Grid pattern -->
+  <g opacity="0.08" stroke="#38bdf8" stroke-width="1">
+    <line x1="0" y1="50" x2="800" y2="50" />
+    <line x1="0" y1="100" x2="800" y2="100" />
+    <line x1="0" y1="150" x2="800" y2="150" />
+    <line x1="0" y1="200" x2="800" y2="200" />
+    <line x1="0" y1="250" x2="800" y2="250" />
+    <line x1="0" y1="300" x2="800" y2="300" />
+    <line x1="0" y1="350" x2="800" y2="350" />
+    <line x1="0" y1="400" x2="800" y2="400" />
+
+    <line x1="100" y1="0" x2="100" y2="450" />
+    <line x1="200" y1="0" x2="200" y2="450" />
+    <line x1="300" y1="0" x2="300" y2="450" />
+    <line x1="400" y1="0" x2="400" y2="450" />
+    <line x1="500" y1="0" x2="500" y2="450" />
+    <line x1="600" y1="0" x2="600" y2="450" />
+    <line x1="700" y1="0" x2="700" y2="450" />
+  </g>
+
+  <!-- Glowing Aura Circle -->
+  <circle cx="650" cy="120" r="140" fill="#06b6d4" opacity="0.18" filter="url(#glowEffect)" />
+  <circle cx="150" cy="350" r="100" fill="#3b82f6" opacity="0.15" filter="url(#glowEffect)" />
+
+  <!-- Mockup Window Shell -->
+  <g transform="translate(60, 45)">
+    <!-- Browser Window Card -->
+    <rect width="680" height="360" rx="14" fill="#0b1120" stroke="#1e293b" stroke-width="1.5" filter="drop-shadow(0 20px 30px rgba(0,0,0,0.7))" />
+
+    <!-- Window Top Header Bar -->
+    <path d="M 0 14 Q 0 0 14 0 L 666 0 Q 680 0 680 14 L 680 44 L 0 44 Z" fill="#0f172a" />
+    <circle cx="22" cy="22" r="5" fill="#ef4444" opacity="0.8" />
+    <circle cx="38" cy="22" r="5" fill="#f59e0b" opacity="0.8" />
+    <circle cx="54" cy="22" r="5" fill="#10b981" opacity="0.8" />
+
+    <rect x="180" y="12" width="320" height="20" rx="6" fill="#1e293b" />
+    <text x="340" y="26" fill="#94a3b8" font-family="monospace" font-size="11" text-anchor="middle">adros.lms.domain / clean-architecture</text>
+
+    <!-- Sidebar in UI -->
+    <rect x="0" y="44" width="160" height="316" fill="#0a0f1d" stroke="#1e293b" stroke-width="1" />
+    
+    <!-- Sidebar Items -->
+    <rect x="14" y="66" width="132" height="28" rx="6" fill="url(#accentGlow)" stroke="#06b6d4" stroke-width="1" />
+    <circle cx="28" cy="80" r="4" fill="#06b6d4" />
+    <text x="42" y="84" fill="#f8fafc" font-family="system-ui, sans-serif" font-weight="600" font-size="11">Dashboard</text>
+
+    <rect x="14" y="104" width="132" height="28" rx="6" fill="transparent" />
+    <circle cx="28" cy="118" r="4" fill="#475569" />
+    <text x="42" y="122" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="11">Courses Catalog</text>
+
+    <rect x="14" y="142" width="132" height="28" rx="6" fill="transparent" />
+    <circle cx="28" cy="156" r="4" fill="#475569" />
+    <text x="42" y="160" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="11">Students &amp; Grades</text>
+
+    <rect x="14" y="180" width="132" height="28" rx="6" fill="transparent" />
+    <circle cx="28" cy="194" r="4" fill="#475569" />
+    <text x="42" y="198" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="11">EF Core Schema</text>
+
+    <!-- Tech Badge in Sidebar -->
+    <rect x="14" y="300" width="132" height="42" rx="8" fill="#1e293b" opacity="0.6" />
+    <text x="24" y="318" fill="#38bdf8" font-family="system-ui, sans-serif" font-weight="700" font-size="10">.NET 8 Clean Arch</text>
+    <text x="24" y="332" fill="#64748b" font-family="monospace" font-size="9">CQRS + MediatR</text>
+
+    <!-- Main Content Area -->
+    <!-- Metric Cards -->
+    <g transform="translate(180, 64)">
+      <!-- Card 1 -->
+      <rect width="150" height="72" rx="8" fill="#111c30" stroke="#1e293b" stroke-width="1" />
+      <text x="14" y="24" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="10" font-weight="500">Active Students</text>
+      <text x="14" y="52" fill="#f8fafc" font-family="system-ui, sans-serif" font-size="20" font-weight="800">2,514</text>
+      <path d="M 100 48 L 115 36 L 130 40 L 140 28" fill="none" stroke="#06b6d4" stroke-width="2" />
+
+      <!-- Card 2 -->
+      <g transform="translate(162, 0)">
+        <rect width="150" height="72" rx="8" fill="#111c30" stroke="#1e293b" stroke-width="1" />
+        <text x="14" y="24" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="10" font-weight="500">Course Completion</text>
+        <text x="14" y="52" fill="#38bdf8" font-family="system-ui, sans-serif" font-size="20" font-weight="800">89.4%</text>
+        <circle cx="120" cy="40" r="14" fill="none" stroke="#1e293b" stroke-width="3" />
+        <circle cx="120" cy="40" r="14" fill="none" stroke="#06b6d4" stroke-width="3" stroke-dasharray="70 20" />
+      </g>
+
+      <!-- Card 3 -->
+      <g transform="translate(324, 0)">
+        <rect width="150" height="72" rx="8" fill="#111c30" stroke="#1e293b" stroke-width="1" />
+        <text x="14" y="24" fill="#94a3b8" font-family="system-ui, sans-serif" font-size="10" font-weight="500">API Latency</text>
+        <text x="14" y="52" fill="#10b981" font-family="monospace" font-size="18" font-weight="800">14ms</text>
+        <rect x="105" y="32" width="30" height="18" rx="4" fill="#10b981" opacity="0.2" />
+        <text x="120" y="45" fill="#10b981" font-size="9" font-weight="bold" text-anchor="middle">FAST</text>
+      </g>
+    </g>
+
+    <!-- Bottom Chart & Code Preview Panel -->
+    <g transform="translate(180, 152)">
+      <!-- Main Chart Card -->
+      <rect width="314" height="188" rx="10" fill="#111c30" stroke="#1e293b" stroke-width="1" />
+      <text x="16" y="24" fill="#f8fafc" font-family="system-ui, sans-serif" font-size="12" font-weight="700">Course Progress &amp; Enrolment Trend</text>
+      
+      <!-- Chart Area -->
+      <path d="M 20 150 C 70 120, 120 135, 170 80 C 220 35, 260 70, 295 40 L 295 160 L 20 160 Z" fill="url(#cyanGrad)" opacity="0.15" />
+      <path d="M 20 150 C 70 120, 120 135, 170 80 C 220 35, 260 70, 295 40" fill="none" stroke="#06b6d4" stroke-width="2.5" />
+      <circle cx="170" cy="80" r="4" fill="#06b6d4" stroke="#ffffff" stroke-width="1.5" />
+      <circle cx="295" cy="40" r="4" fill="#3b82f6" stroke="#ffffff" stroke-width="1.5" />
+
+      <!-- Right Code / Domain Layer Card -->
+      <g transform="translate(324, 0)">
+        <rect width="150" height="188" rx="10" fill="#080c14" stroke="#06b6d4" stroke-width="1" stroke-opacity="0.4" />
+        <rect x="0" y="0" width="150" height="26" rx="8" fill="#0e1726" />
+        <text x="10" y="17" fill="#38bdf8" font-family="monospace" font-size="9" font-weight="bold">Course.cs [Domain]</text>
+        
+        <text x="10" y="44" fill="#93c5fd" font-family="monospace" font-size="8">public class Course</text>
+        <text x="10" y="58" fill="#cbd5e1" font-family="monospace" font-size="8">{</text>
+        <text x="18" y="72" fill="#38bdf8" font-family="monospace" font-size="8">  Guid Id { get; }</text>
+        <text x="18" y="86" fill="#38bdf8" font-family="monospace" font-size="8">  string Title</text>
+        <text x="18" y="100" fill="#34d399" font-family="monospace" font-size="8">  Enroll(Student s)</text>
+        <text x="18" y="114" fill="#64748b" font-family="monospace" font-size="8">  // Domain Event</text>
+        <text x="18" y="128" fill="#fbbf24" font-family="monospace" font-size="8">  RaiseEvent(...)</text>
+        <text x="10" y="142" fill="#cbd5e1" font-family="monospace" font-size="8">}</text>
+
+        <rect x="10" y="156" width="130" height="22" rx="4" fill="#06b6d4" opacity="0.15" />
+        <text x="75" y="171" fill="#06b6d4" font-family="monospace" font-weight="bold" font-size="9" text-anchor="middle">✓ Clean Architecture</text>
+      </g>
+    </g>
+  </g>
+</svg>
