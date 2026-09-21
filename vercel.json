@@ -1,8 +1,14 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
+    {
+      "source": "/api/proxy/:path*",
+      "destination": "https://mohamedrashedportofolio.runasp.net/api/:path*"
+    },
     {
       "source": "/((?!api/.*).*)",
       "destination": "/index.html"
     }
   ]
 }
+```[cite: 15]
