@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 
 namespace Portfolio.Application.DTOs;
 
@@ -27,9 +28,12 @@ public sealed class UpdateProjectDto
     // null = preserve, [] = clear, [...] = synchronize
     public IReadOnlyList<string>? TechnologyNames { get; set; }
 
+    [ValidateNever]
     public IReadOnlyList<CreateProjectMetricDto>? Metrics { get; set; }
 
+    [ValidateNever]
     public IReadOnlyList<CreateProjectEndpointDto>? Endpoints { get; set; }
 
+    [ValidateNever]
     public IReadOnlyList<CreateArchitectureLayerDto>? ArchitectureLayers { get; set; }
 }
