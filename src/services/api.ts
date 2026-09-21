@@ -888,7 +888,7 @@ export function mapBackendProjectToProject(dto: BackendProjectDto): Project {
 
 export async function fetchProjects(): Promise<Project[]> {
   try {
-    const res = await apiFetch<BackendProjectDto[]>('/api/v1/projects');
+    const res = await apiFetch<BackendProjectDto[]>('/api/proxy/v1/projects');
     if (Array.isArray(res) && res.length > 0) {
       return res.map(mapBackendProjectToProject);
     }
@@ -1192,7 +1192,7 @@ export async function fetchInquiries(): Promise<Inquiry[]> {
     message: string;
     status: string;
     createdAt: string;
-  }>>('/api/v1/admin/inquiries', {
+  }>>('/api/proxy/v1/admin/inquiries', {
     headers: {
       Authorization: `Bearer ${token}`,
     },
