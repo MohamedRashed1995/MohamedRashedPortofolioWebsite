@@ -42,39 +42,45 @@ public sealed class ProjectService(ApplicationDbContext db) : IProjectService
     }
 
     public async Task<ProjectDto?> UpdateAsync(Guid id, UpdateProjectDto input, CancellationToken ct)
-    {
-        var project = await db.Projects
-            .Include(p => p.ProjectTechnologies)
-            .Include(p => p.Metrics)
-            .Include(p => p.Endpoints)
-            .Include(p => p.ArchitectureLayers)
-            .SingleOrDefaultAsync(p => p.Id == id, ct);
+{
+    var project = await db.Projects
+        .Include(p => p.ProjectTechnologies)
+        .Include(p => p.Metrics)
+        .Include(p => p.Endpoints)
+        .Include(p => p.ArchitectureLayers)
+        .SingleOrDefaultAsync(p => p.Id == id, ct);
 
-        if (project is null) return null;
+    if (project is null) return null;
 
-        project.Title = input.Title.Trim();
-        project.ShortDescription = input.ShortDescription.Trim();
-        project.Description = input.Description.Trim();
-        project.Role = input.Role.Trim();
-        project.Featured = input.Featured;
-        project.DisplayOrder = input.DisplayOrder;
-        project.UpdatedAt = DateTime.UtcNow;
+    project.Title = input.Title.Trim();
+    // ملاحظة: إذا كان الـ UpdateProjectDto لا يحتوي على Slug، تجنب الكتابة فوقه أو اجعله مُحدثاً إذا كان مرسلاً
+    project.ShortDescription = input.ShortDescription.Trim();
+    project.Description = input.Description.Trim();
+    project.Role = input.Role.Trim();
+    project.Featured = input.Featured;
+    project.DisplayOrder = input.DisplayOrder;
+    project.UpdatedAt = DateTime.UtcNow;
 
-        db.ProjectTechnologies.RemoveRange(project.ProjectTechnologies);
-        db.ProjectMetrics.RemoveRange(project.Metrics);
-        db.ProjectEndpoints.RemoveRange(project.Endpoints);
-        db.ArchitectureLayers.RemoveRange(project.ArchitectureLayers);
-        project.ProjectTechnologies.Clear();
-        project.Metrics.Clear();
-        project.Endpoints.Clear();
-        project.ArchitectureLayers.Clear();
+    // مسح العلاقات القديمة بطريقة آمنة
+    db.ProjectTechnologies.RemoveRange(project.ProjectTechnologies);
+    db.ProjectMetrics.RemoveRange(project.Metrics);
+    db.ProjectEndpoints.RemoveRange(project.Endpoints);
+    db.ArchitectureLayers.RemoveRange(project.ArchitectureLayers);
+    
+    // حفظ التغييرات المؤقتة لحذف العناصر القديمة من قاعدة البيانات أولاً ومنع تداخل الـ Tracking
+    await db.SaveChangesAsync(ct);
 
-        await AttachRelatedAsync(project, input.TechnologyNames, input.Metrics, input.Endpoints, input.ArchitectureLayers, ct);
+    project.ProjectTechnologies.Clear();
+    project.Metrics.Clear();
+    project.Endpoints.Clear();
+    project.ArchitectureLayers.Clear();
 
-        await db.SaveChangesAsync(ct);
-        return await GetDtoByIdAsync(project.Id, ct);
-    }
+    // ربط العناصر الجديدة
+    await AttachRelatedAsync(project, input.TechnologyNames, input.Metrics, input.Endpoints, input.ArchitectureLayers, ct);
 
+    await db.SaveChangesAsync(ct);
+    return await GetDtoByIdAsync(project.Id, ct);
+}
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct)
     {
         var project = await db.Projects.SingleOrDefaultAsync(p => p.Id == id, ct);
