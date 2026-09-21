@@ -30,6 +30,7 @@ import {
   updateProject,
   deleteProject,
   type ProjectCreateInput,
+  type ProjectUpdateInput,
 } from '@/services/api';
 import type { Project } from '@/types';
 import PageTransition from '@/components/PageTransition';
@@ -175,9 +176,21 @@ export default function Admin() {
       const techNames = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
       const payload: ProjectCreateInput = { ...projectForm, technologyNames: techNames };
       if (editingProject) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { slug: _slug, ...rest } = payload;
-        await updateProject(editingProject.id, rest);
+        // The edit dialog only manages core fields + technologyNames.
+        // Pass null for unedited collections so backend PRESERVES them (not clears).
+        const updatePayload: ProjectUpdateInput = {
+          title: projectForm.title,
+          shortDescription: projectForm.shortDescription,
+          description: projectForm.description,
+          role: projectForm.role,
+          featured: projectForm.featured,
+          displayOrder: projectForm.displayOrder,
+          technologyNames: techNames,
+          metrics: null,       // not managed in this dialog — preserve existing
+          endpoints: null,     // not managed in this dialog — preserve existing
+          architectureLayers: null, // not managed in this dialog — preserve existing
+        };
+        await updateProject(editingProject.id, updatePayload);
       } else {
         await createProject(payload);
       }

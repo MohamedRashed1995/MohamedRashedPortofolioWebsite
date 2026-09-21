@@ -934,6 +934,19 @@ export interface ProjectCreateInput {
   architectureLayers: { name: string; description: string; responsibilities: string; displayOrder: number }[];
 }
 
+export interface ProjectUpdateInput {
+  title: string;
+  shortDescription: string;
+  description: string;
+  role: string;
+  featured: boolean;
+  displayOrder: number;
+  technologyNames?: string[] | null;
+  metrics?: { metricName: string; metricValue: string; displayOrder: number }[] | null;
+  endpoints?: { httpMethod: string; route: string; description: string; authenticationRequired: boolean; isPublicDemo: boolean }[] | null;
+  architectureLayers?: { name: string; description: string; responsibilities: string; displayOrder: number }[] | null;
+}
+
 export async function createProject(input: ProjectCreateInput): Promise<Project> {
   const token = getAdminToken();
   if (!token) throw new ApiError('Authentication token missing. Please log in.', 401);
@@ -949,7 +962,7 @@ export async function createProject(input: ProjectCreateInput): Promise<Project>
   return mapBackendProjectToProject(res);
 }
 
-export async function updateProject(id: string, input: Omit<ProjectCreateInput, 'slug'>): Promise<Project> {
+export async function updateProject(id: string, input: ProjectUpdateInput): Promise<Project> {
   const token = getAdminToken();
   if (!token) throw new ApiError('Authentication token missing. Please log in.', 401);
 

@@ -40,9 +40,35 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
-builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-    .WithOrigins(builder.Configuration["Cors:Frontend"] ?? "http://localhost:5173")
-    .AllowAnyHeader().AllowAnyMethod()));
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+{
+    var corsSection = builder.Configuration.GetSection("Cors");
+    var origins = new List<string>();
+    
+    // Support both Cors:Frontend (single) and Cors:AllowedOrigins (array)
+    var singleOrigin = corsSection["Frontend"];
+    if (!string.IsNullOrWhiteSpace(singleOrigin))
+        origins.Add(singleOrigin);
+    
+    var allowedOrigins = corsSection.GetSection("AllowedOrigins").Get<string[]>();
+    if (allowedOrigins is { Length: > 0 })
+        origins.AddRange(allowedOrigins);
+    
+    // Always include production and common local dev origins
+    var defaultOrigins = new[]
+    {
+        "https://mohamed-rashed-portfolio-website.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000"
+    };
+    foreach (var origin in defaultOrigins)
+        if (!origins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+            origins.Add(origin);
+    
+    policy.WithOrigins([.. origins])
+          .AllowAnyHeader()
+          .AllowAnyMethod();
+}));
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy("public", context =>
@@ -92,15 +118,16 @@ sealed class AdminRateLimitingConvention : IActionModelConvention
 {
     public void Apply(ActionModel action)
     {
-        if (action.Controller.ControllerName == "Auth" ||
+        var policyName = (action.Controller.ControllerName == "Auth" ||
             action.Attributes.OfType<AuthorizeAttribute>().Any() ||
             action.Controller.Attributes.OfType<AuthorizeAttribute>().Any())
+            ? "admin"
+            : "public";
+
+        var rateLimitAttr = new EnableRateLimitingAttribute(policyName);
+        foreach (var selector in action.Selectors)
         {
-            action.Filters.Add(new EnableRateLimitingAttribute("admin"));
-        }
-        else
-        {
-            action.Filters.Add(new EnableRateLimitingAttribute("public"));
+            selector.EndpointMetadata.Add(rateLimitAttr);
         }
     }
 }

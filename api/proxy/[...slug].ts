@@ -370,15 +370,20 @@ export default async function handler(
       return;
     }
 
+    // Treat application/problem+json (ASP.NET Core validation errors) as JSON too
     if (
-      responseContentType.includes(
-        'application/json',
-      )
+      responseContentType.includes('application/json') ||
+      responseContentType.includes('application/problem+json') ||
+      responseContentType.includes('+json')
     ) {
       const data =
         await upstreamResponse
           .json()
           .catch(() => null);
+
+      if (responseContentType) {
+        res.setHeader('Content-Type', responseContentType);
+      }
 
       res
         .status(statusCode)
