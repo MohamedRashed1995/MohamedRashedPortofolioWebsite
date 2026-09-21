@@ -158,7 +158,7 @@ export default function Admin() {
       description: project.longDescription || project.shortDescription,
       role: project.role || 'Full-Stack Engineer',
       featured: project.featured,
-      displayOrder: 0,
+      displayOrder: project.displayOrder ?? 0,
       technologyNames: project.tags || [],
       metrics: [],
       endpoints: [],

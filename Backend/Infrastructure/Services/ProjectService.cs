@@ -53,26 +53,18 @@ public sealed class ProjectService(ApplicationDbContext db) : IProjectService
 
         if (project is null) return null;
 
-        // ── Phase 1: collect and flush deletions ──────────────────────────────
-        bool hasRemovals = false;
-
         if (input.TechnologyNames is not null)
-            hasRemovals |= RemoveObsoleteTechnologies(project, input.TechnologyNames);
+            await SyncTechnologiesAsync(project, input.TechnologyNames, ct);
 
         if (input.Metrics is not null)
-            hasRemovals |= RemoveObsoleteMetrics(project, input.Metrics);
+            SyncMetrics(project, input.Metrics);
 
         if (input.Endpoints is not null)
-            hasRemovals |= RemoveObsoleteEndpoints(project, input.Endpoints);
+            SyncEndpoints(project, input.Endpoints);
 
         if (input.ArchitectureLayers is not null)
-            hasRemovals |= RemoveObsoleteLayers(project, input.ArchitectureLayers);
+            SyncLayers(project, input.ArchitectureLayers);
 
-        // Flush deletions first so the InMemory store sees them before inserts
-        if (hasRemovals)
-            await db.SaveChangesAsync(ct);
-
-        // ── Phase 2: update scalars + add new children ────────────────────────
         project.Title = input.Title.Trim();
         project.ShortDescription = input.ShortDescription.Trim();
         project.Description = input.Description.Trim();
@@ -80,18 +72,6 @@ public sealed class ProjectService(ApplicationDbContext db) : IProjectService
         project.Featured = input.Featured;
         project.DisplayOrder = input.DisplayOrder;
         project.UpdatedAt = DateTime.UtcNow;
-
-        if (input.TechnologyNames is not null)
-            await AddNewTechnologiesAsync(project, input.TechnologyNames, ct);
-
-        if (input.Metrics is not null)
-            AddOrUpdateMetrics(project, input.Metrics);
-
-        if (input.Endpoints is not null)
-            AddOrUpdateEndpoints(project, input.Endpoints);
-
-        if (input.ArchitectureLayers is not null)
-            AddOrUpdateLayers(project, input.ArchitectureLayers);
 
         await db.SaveChangesAsync(ct);
         return await GetDtoByIdAsync(project.Id, ct);
@@ -107,68 +87,10 @@ public sealed class ProjectService(ApplicationDbContext db) : IProjectService
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Private synchronization helpers — Phase 1: remove obsolete
+    // Private synchronization helpers — update tracked children in memory
     // ──────────────────────────────────────────────────────────────
 
-    private bool RemoveObsoleteTechnologies(Project project, IReadOnlyList<string> incoming)
-    {
-        var names = incoming.Select(n => n.Trim()).Where(n => n.Length > 0)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var toRemove = project.ProjectTechnologies
-            .Where(pt => !names.Contains(pt.Technology.Name))
-            .ToList();
-        foreach (var link in toRemove)
-        {
-            project.ProjectTechnologies.Remove(link);
-            db.Entry(link).State = EntityState.Deleted;
-        }
-        return toRemove.Count > 0;
-    }
-
-    private bool RemoveObsoleteMetrics(Project project, IReadOnlyList<CreateProjectMetricDto> incoming)
-    {
-        var names = incoming.Select(m => m.MetricName.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var toRemove = project.Metrics.Where(m => !names.Contains(m.MetricName)).ToList();
-        foreach (var m in toRemove)
-        {
-            project.Metrics.Remove(m);
-            db.Entry(m).State = EntityState.Deleted;
-        }
-        return toRemove.Count > 0;
-    }
-
-    private bool RemoveObsoleteEndpoints(Project project, IReadOnlyList<CreateProjectEndpointDto> incoming)
-    {
-        var toRemove = project.Endpoints
-            .Where(e => !incoming.Any(dto =>
-                string.Equals(dto.HttpMethod.Trim(), e.HttpMethod, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(dto.Route.Trim(), e.Route, StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-        foreach (var e in toRemove)
-        {
-            project.Endpoints.Remove(e);
-            db.Entry(e).State = EntityState.Deleted;
-        }
-        return toRemove.Count > 0;
-    }
-
-    private bool RemoveObsoleteLayers(Project project, IReadOnlyList<CreateArchitectureLayerDto> incoming)
-    {
-        var names = incoming.Select(l => l.Name.Trim()).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var toRemove = project.ArchitectureLayers.Where(l => !names.Contains(l.Name)).ToList();
-        foreach (var l in toRemove)
-        {
-            project.ArchitectureLayers.Remove(l);
-            db.Entry(l).State = EntityState.Deleted;
-        }
-        return toRemove.Count > 0;
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Private synchronization helpers — Phase 2: add or update
-    // ──────────────────────────────────────────────────────────────
-
-    private async Task AddNewTechnologiesAsync(
+    private async Task SyncTechnologiesAsync(
         Project project,
         IReadOnlyList<string> incoming,
         CancellationToken ct)
@@ -179,126 +101,182 @@ public sealed class ProjectService(ApplicationDbContext db) : IProjectService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var incomingNames = names
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var obsoleteLinks = project.ProjectTechnologies
+            .Where(pt => !incomingNames.Contains(pt.Technology.Name))
+            .ToList();
+
+        foreach (var link in obsoleteLinks)
+            db.ProjectTechnologies.Remove(link);
+
         var existingNames = project.ProjectTechnologies
+            .Where(pt => db.Entry(pt).State != EntityState.Deleted)
             .Select(pt => pt.Technology.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var namesToAdd = names.Where(n => !existingNames.Contains(n)).ToList();
+        var namesToAdd = names.Where(name => !existingNames.Contains(name)).ToList();
+        if (namesToAdd.Count == 0)
+            return;
 
-        if (namesToAdd.Count > 0)
+        var existingTechnologies = await db.Technologies
+            .Where(t => namesToAdd.Contains(t.Name))
+            .ToListAsync(ct);
+
+        foreach (var name in namesToAdd)
         {
-            var dbTechs = await db.Technologies
-                .Where(t => namesToAdd.Contains(t.Name))
-                .ToListAsync(ct);
+            var technology = existingTechnologies.FirstOrDefault(t =>
+                string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
 
-            foreach (var name in namesToAdd)
+            if (technology is null)
             {
-                var tech = dbTechs.FirstOrDefault(t =>
-                    string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
-
-                if (tech is null)
+                technology = new Technology
                 {
-                    tech = new Technology { Id = Guid.NewGuid(), Name = name, Category = "General" };
-                    db.Technologies.Add(tech);
-                    dbTechs.Add(tech);
-                }
-
-                db.ProjectTechnologies.Add(new ProjectTechnology
-                {
-                    ProjectId = project.Id,
-                    TechnologyId = tech.Id
-                });
+                    Id = Guid.NewGuid(),
+                    Name = name,
+                    Category = "General"
+                };
+                db.Technologies.Add(technology);
+                existingTechnologies.Add(technology);
             }
+
+            db.ProjectTechnologies.Add(new ProjectTechnology
+            {
+                ProjectId = project.Id,
+                Project = project,
+                TechnologyId = technology.Id,
+                Technology = technology
+            });
         }
     }
 
-    private void AddOrUpdateMetrics(Project project, IReadOnlyList<CreateProjectMetricDto> incoming)
+    private void SyncMetrics(Project project, IReadOnlyList<CreateProjectMetricDto> incoming)
     {
+        var incomingNames = incoming
+            .Select(metric => metric.MetricName.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var obsoleteMetrics = project.Metrics
+            .Where(metric => !incomingNames.Contains(metric.MetricName))
+            .ToList();
+
+        foreach (var metric in obsoleteMetrics)
+            db.ProjectMetrics.Remove(metric);
+
         foreach (var dto in incoming)
         {
             var name = dto.MetricName.Trim();
-            var existing = project.Metrics.FirstOrDefault(m =>
-                string.Equals(m.MetricName, name, StringComparison.OrdinalIgnoreCase));
+            var existing = project.Metrics.FirstOrDefault(metric =>
+                db.Entry(metric).State != EntityState.Deleted &&
+                string.Equals(metric.MetricName, name, StringComparison.OrdinalIgnoreCase));
 
             if (existing is not null)
             {
                 existing.MetricValue = dto.MetricValue.Trim();
                 existing.DisplayOrder = dto.DisplayOrder;
+                continue;
             }
-            else
+
+            db.ProjectMetrics.Add(new ProjectMetric
             {
-                db.ProjectMetrics.Add(new ProjectMetric
-                {
-                    Id = Guid.NewGuid(),
-                    ProjectId = project.Id,
-                    MetricName = name,
-                    MetricValue = dto.MetricValue.Trim(),
-                    DisplayOrder = dto.DisplayOrder
-                });
-            }
+                Id = Guid.NewGuid(),
+                ProjectId = project.Id,
+                Project = project,
+                MetricName = name,
+                MetricValue = dto.MetricValue.Trim(),
+                DisplayOrder = dto.DisplayOrder
+            });
         }
     }
 
-    private void AddOrUpdateEndpoints(Project project, IReadOnlyList<CreateProjectEndpointDto> incoming)
+    private void SyncEndpoints(Project project, IReadOnlyList<CreateProjectEndpointDto> incoming)
     {
+        var incomingKeys = incoming
+            .Select(dto => GetEndpointKey(dto.HttpMethod, dto.Route))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var obsoleteEndpoints = project.Endpoints
+            .Where(endpoint => !incomingKeys.Contains(GetEndpointKey(endpoint.HttpMethod, endpoint.Route)))
+            .ToList();
+
+        foreach (var endpoint in obsoleteEndpoints)
+            db.ProjectEndpoints.Remove(endpoint);
+
         foreach (var dto in incoming)
         {
             var method = dto.HttpMethod.Trim().ToUpperInvariant();
             var route = dto.Route.Trim();
-            var existing = project.Endpoints.FirstOrDefault(e =>
-                string.Equals(e.HttpMethod, method, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(e.Route, route, StringComparison.OrdinalIgnoreCase));
+            var existing = project.Endpoints.FirstOrDefault(endpoint =>
+                db.Entry(endpoint).State != EntityState.Deleted &&
+                string.Equals(endpoint.HttpMethod, method, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(endpoint.Route, route, StringComparison.OrdinalIgnoreCase));
 
             if (existing is not null)
             {
                 existing.Description = dto.Description.Trim();
                 existing.AuthenticationRequired = dto.AuthenticationRequired;
                 existing.IsPublicDemo = dto.IsPublicDemo;
+                continue;
             }
-            else
+
+            db.ProjectEndpoints.Add(new ProjectEndpoint
             {
-                db.ProjectEndpoints.Add(new ProjectEndpoint
-                {
-                    Id = Guid.NewGuid(),
-                    ProjectId = project.Id,
-                    HttpMethod = method,
-                    Route = route,
-                    Description = dto.Description.Trim(),
-                    AuthenticationRequired = dto.AuthenticationRequired,
-                    IsPublicDemo = dto.IsPublicDemo
-                });
-            }
+                Id = Guid.NewGuid(),
+                ProjectId = project.Id,
+                Project = project,
+                HttpMethod = method,
+                Route = route,
+                Description = dto.Description.Trim(),
+                AuthenticationRequired = dto.AuthenticationRequired,
+                IsPublicDemo = dto.IsPublicDemo
+            });
         }
     }
 
-    private void AddOrUpdateLayers(Project project, IReadOnlyList<CreateArchitectureLayerDto> incoming)
+    private void SyncLayers(Project project, IReadOnlyList<CreateArchitectureLayerDto> incoming)
     {
+        var incomingNames = incoming
+            .Select(layer => layer.Name.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var obsoleteLayers = project.ArchitectureLayers
+            .Where(layer => !incomingNames.Contains(layer.Name))
+            .ToList();
+
+        foreach (var layer in obsoleteLayers)
+            db.ArchitectureLayers.Remove(layer);
+
         foreach (var dto in incoming)
         {
             var name = dto.Name.Trim();
-            var existing = project.ArchitectureLayers.FirstOrDefault(l =>
-                string.Equals(l.Name, name, StringComparison.OrdinalIgnoreCase));
+            var existing = project.ArchitectureLayers.FirstOrDefault(layer =>
+                db.Entry(layer).State != EntityState.Deleted &&
+                string.Equals(layer.Name, name, StringComparison.OrdinalIgnoreCase));
 
             if (existing is not null)
             {
                 existing.Description = dto.Description.Trim();
                 existing.Responsibilities = dto.Responsibilities.Trim();
                 existing.DisplayOrder = dto.DisplayOrder;
+                continue;
             }
-            else
+
+            db.ArchitectureLayers.Add(new ArchitectureLayer
             {
-                db.ArchitectureLayers.Add(new ArchitectureLayer
-                {
-                    Id = Guid.NewGuid(),
-                    ProjectId = project.Id,
-                    Name = name,
-                    Description = dto.Description.Trim(),
-                    Responsibilities = dto.Responsibilities.Trim(),
-                    DisplayOrder = dto.DisplayOrder
-                });
-            }
+                Id = Guid.NewGuid(),
+                ProjectId = project.Id,
+                Project = project,
+                Name = name,
+                Description = dto.Description.Trim(),
+                Responsibilities = dto.Responsibilities.Trim(),
+                DisplayOrder = dto.DisplayOrder
+            });
         }
     }
+
+    private static string GetEndpointKey(string httpMethod, string route) =>
+        $"{httpMethod.Trim().ToUpperInvariant()}::{route.Trim()}";
 
     private async Task AttachRelatedForCreateAsync(
         Project project,

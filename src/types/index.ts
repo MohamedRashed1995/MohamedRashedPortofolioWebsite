@@ -20,6 +20,7 @@ export interface Project {
   role: string;
   roleAr?: string;
   period: string;
+  displayOrder?: number;
   featured: boolean;
   image?: string;
   repoUrl?: string;
